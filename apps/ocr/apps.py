@@ -1,7 +1,6 @@
 from django.apps import AppConfig
 
-
-class OcrConfig(AppConfig):
+class OCRConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.ocr'
     verbose_name = 'OCR Pipeline'

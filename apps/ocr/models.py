@@ -1,6 +1,11 @@
-"""OCR Pipeline models - queue, result, extracted entities."""
+"""OCR queue and result models.
+
+Status flow:
+  PENDING → PROCESSING → COMPLETED
+                       → FAILED → RETRY → PROCESSING (repeat up to max_attempts)
+                       → MANUAL_REVIEW (after max retries)
+"""
 from django.db import models
-from django.conf import settings
 
 
 class OCRQueue(models.Model):
@@ -12,80 +17,84 @@ class OCRQueue(models.Model):
         RETRY = 'RETRY', 'Retry'
         MANUAL_REVIEW = 'MANUAL_REVIEW', 'Manual Review'
 
-    file = models.OneToOneField('edms.FileAttachment', on_delete=models.CASCADE, related_name='ocr_queue')
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
-    priority = models.IntegerField(default=5, help_text='1=highest, 10=lowest')
-    attempts = models.IntegerField(default=0)
-    max_attempts = models.IntegerField(default=3)
-    queued_at = models.DateTimeField(auto_now_add=True)
+    file_attachment = models.OneToOneField(
+        'edms.FileAttachment', on_delete=models.CASCADE,
+        related_name='ocr_queue_item',
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices,
+        default=Status.PENDING, db_index=True,
+    )
+    priority = models.PositiveSmallIntegerField(default=5)  # 1=highest, 10=lowest
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    ocr_engine = models.CharField(max_length=40, default='tesseract-5')
+
+    queued_at = models.DateTimeField(auto_now_add=True, db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    last_error = models.TextField(blank=True)
     processing_time_seconds = models.FloatField(null=True, blank=True)
-    ocr_engine = models.CharField(max_length=50, default='tesseract')
-    language = models.CharField(max_length=10, default='eng')
-    preprocessing_options = models.JSONField(default=dict, blank=True)
-    worker_id = models.CharField(max_length=100, blank=True)
-    assigned_at = models.DateTimeField(null=True, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='ocr_queue_created')
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    failure_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = 'ocr_queue'
         ordering = ['priority', 'queued_at']
         indexes = [
-            models.Index(fields=['status', 'priority']),
-            models.Index(fields=['status', 'queued_at']),
+            models.Index(fields=['status', 'priority', 'queued_at']),
         ]
 
+    @property
+    def file_name(self):
+        return self.file_attachment.file_name
+
     def __str__(self):
-        return f"OCR Queue #{self.id} [{self.status}] - {self.file.file_name}"
+        return f'OCR[{self.status}] {self.file_name}'
 
 
 class OCRResult(models.Model):
-    file = models.OneToOneField('edms.FileAttachment', on_delete=models.CASCADE, related_name='ocr_result')
-    queue = models.OneToOneField(OCRQueue, null=True, on_delete=models.SET_NULL, related_name='result')
+    queue_item = models.OneToOneField(
+        OCRQueue, on_delete=models.CASCADE,
+        related_name='result',
+    )
     full_text = models.TextField(blank=True)
-    page_count = models.IntegerField(null=True, blank=True)
-    confidence_score = models.FloatField(null=True, blank=True)
-    page_results = models.JSONField(default=list, help_text='Per-page OCR text and confidence')
-    ocr_engine = models.CharField(max_length=50, default='tesseract')
-    ocr_version = models.CharField(max_length=30, blank=True)
+    confidence = models.FloatField(null=True, blank=True)  # 0.0–100.0
+    page_count = models.PositiveSmallIntegerField(default=1)
     language_detected = models.CharField(max_length=10, blank=True)
-    processing_time_seconds = models.FloatField(null=True, blank=True)
-    file_size_bytes = models.BigIntegerField(null=True, blank=True)
-    processed_at = models.DateTimeField(auto_now_add=True)
-    indexed_at = models.DateTimeField(null=True, blank=True)
+    extracted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'ocr_result'
 
     def __str__(self):
-        return f"OCR Result for {self.file.file_name} (conf: {self.confidence_score})"
+        return f'OCRResult for {self.queue_item.file_name}'
 
 
-class ExtractedEntity(models.Model):
+class OCRExtractedEntity(models.Model):
+    """Engineering entities parsed from OCR text."""
+
     class EntityType(models.TextChoices):
         DOCUMENT_NUMBER = 'DOC_NUM', 'Document Number'
-        SPEC_NUMBER = 'SPEC_NUM', 'Specification Number'
-        STANDARD = 'STANDARD', 'Standard Reference'
-        DRAWING_NUMBER = 'DRG_NUM', 'Drawing Number'
+        SPECIFICATION = 'SPEC', 'Specification'
+        STANDARD = 'STD', 'Standard'
+        DRAWING_NUMBER = 'DWG', 'Drawing Number'
+        PART_NUMBER = 'PART', 'Part Number'
         DATE = 'DATE', 'Date'
-        REVISION = 'REVISION', 'Revision'
-        KEYWORD = 'KEYWORD', 'Keyword'
         OTHER = 'OTHER', 'Other'
 
-    ocr_result = models.ForeignKey(OCRResult, on_delete=models.CASCADE, related_name='entities')
+    result = models.ForeignKey(
+        OCRResult, on_delete=models.CASCADE, related_name='entities',
+    )
     entity_type = models.CharField(max_length=20, choices=EntityType.choices)
-    entity_value = models.CharField(max_length=300, db_index=True)
+    value = models.CharField(max_length=500)
     confidence = models.FloatField(null=True, blank=True)
-    context = models.TextField(blank=True)
-    page_number = models.IntegerField(null=True, blank=True)
-    bounding_box = models.JSONField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    page_number = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = 'ocr_extracted_entity'
         indexes = [
-            models.Index(fields=['entity_type', 'entity_value']),
+            models.Index(fields=['entity_type', 'value']),
         ]
+
+    def __str__(self):
+        return f'{self.entity_type}: {self.value}'

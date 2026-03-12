@@ -1,62 +1,48 @@
-"""OCR API views - queue management and results retrieval."""
-from rest_framework import viewsets, permissions, status, generics, filters
+from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.ocr.models import OCRQueue, OCRResult, ExtractedEntity
-from apps.ocr.serializers import OCRQueueSerializer, OCRResultSerializer, ExtractedEntitySerializer
-from apps.ocr.services import OCRService
+from django.db.models import Count, Q
+from apps.ocr.models import OCRQueue
+from apps.ocr.serializers import OCRQueueSerializer, OCRQueueListSerializer
+from apps.ocr.filters import OCRQueueFilter
 from apps.core.permissions import IsEngineerOrAbove
 
 
-class OCRQueueViewSet(viewsets.ModelViewSet):
-    queryset = OCRQueue.objects.select_related('file', 'created_by').all()
-    serializer_class = OCRQueueSerializer
+class OCRQueueViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status', 'ocr_engine', 'language']
-    ordering_fields = ['queued_at', 'priority', 'completed_at']
+    filterset_class = OCRQueueFilter
+    ordering_fields = ['queued_at', 'priority', 'status']
     ordering = ['priority', 'queued_at']
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
-    def perform_create(self, serializer):
-        instance = serializer.save(created_by=self.request.user)
-        return instance
+    def get_queryset(self):
+        return OCRQueue.objects.select_related('file_attachment', 'result')
 
-    @action(detail=True, methods=['post'], url_path='retry')
-    def retry(self, request, pk=None):
-        """Retry a failed or manual-review OCR job."""
-        try:
-            item = OCRService.retry_failed_item(pk)
-            return Response(OCRQueueSerializer(item).data)
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return OCRQueueSerializer
+        return OCRQueueListSerializer
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
-        """Return OCR queue status counts."""
-        from django.db.models import Count, Q
-        data = OCRQueue.objects.aggregate(
-            pending=Count('id', filter=Q(status='PENDING')),
-            processing=Count('id', filter=Q(status='PROCESSING')),
-            completed=Count('id', filter=Q(status='COMPLETED')),
-            failed=Count('id', filter=Q(status='FAILED')),
-            retry=Count('id', filter=Q(status='RETRY')),
-            manual_review=Count('id', filter=Q(status='MANUAL_REVIEW')),
+        agg = (
+            OCRQueue.objects
+            .values('status')
+            .annotate(count=Count('id'))
         )
-        return Response(data)
+        result = {row['status'].lower(): row['count'] for row in agg}
+        return Response(result)
 
-
-class OCRResultListView(generics.ListAPIView):
-    queryset = OCRResult.objects.select_related('file').prefetch_related('entities').all()
-    serializer_class = OCRResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['ocr_engine']
-    search_fields = ['full_text', 'entities__entity_value']
-
-
-class OCRResultDetailView(generics.RetrieveAPIView):
-    queryset = OCRResult.objects.select_related('file').prefetch_related('entities').all()
-    serializer_class = OCRResultSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    @action(detail=True, methods=['post'], url_path='retry')
+    def retry(self, request, pk=None):
+        item = self.get_object()
+        if item.status not in (OCRQueue.Status.FAILED, OCRQueue.Status.MANUAL_REVIEW):
+            return Response(
+                {'error': 'Only FAILED or MANUAL_REVIEW items can be retried.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        item.status = OCRQueue.Status.RETRY
+        item.failure_reason = ''
+        item.save(update_fields=['status', 'failure_reason'])
+        return Response({'status': 'queued_for_retry'})

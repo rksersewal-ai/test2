@@ -1,49 +1,45 @@
-"""Workflow / LDO Work Ledger views."""
 from rest_framework import viewsets, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.workflow.models import WorkLedger, WorkType, Vendor, Tender
-from apps.workflow.serializers import WorkLedgerSerializer, WorkTypeSerializer, VendorSerializer, TenderSerializer
+from apps.workflow.models import WorkType, WorkLedgerEntry
+from apps.workflow.serializers import WorkTypeSerializer, WorkLedgerListSerializer, WorkLedgerDetailSerializer
+from apps.workflow.filters import WorkLedgerFilter
+from apps.workflow.services import WorkLedgerService
 from apps.core.permissions import IsEngineerOrAbove
 
 
-class WorkTypeViewSet(viewsets.ModelViewSet):
-    queryset = WorkType.objects.filter(is_active=True).all()
+class WorkTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = WorkType.objects.filter(is_active=True)
     serializer_class = WorkTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class VendorViewSet(viewsets.ModelViewSet):
-    queryset = Vendor.objects.filter(is_active=True).all()
-    serializer_class = VendorSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'code']
-
-
-class TenderViewSet(viewsets.ModelViewSet):
-    queryset = Tender.objects.select_related('created_by').all()
-    serializer_class = TenderSerializer
+class WorkLedgerEntryViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status']
-    search_fields = ['tender_number', 'title', 'eoffice_file_number']
-    ordering_fields = ['created_at', 'closing_date']
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
-
-class WorkLedgerViewSet(viewsets.ModelViewSet):
-    queryset = WorkLedger.objects.select_related(
-        'work_type', 'section', 'assigned_to', 'document', 'revision', 'tender', 'vendor', 'created_by'
-    ).all()
-    serializer_class = WorkLedgerSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'section', 'work_type', 'assigned_to']
-    search_fields = ['subject', 'eoffice_file_number', 'eoffice_subject', 'remarks']
-    ordering_fields = ['created_at', 'received_date', 'closed_date']
+    filterset_class = WorkLedgerFilter
+    search_fields = [
+        'subject', 'eoffice_subject', 'eoffice_file_number',
+        'eoffice_diary_number', 'remarks',
+    ]
+    ordering_fields = ['created_at', 'updated_at', 'target_date', 'received_date']
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        return (
+            WorkLedgerEntry.objects
+            .select_related('work_type', 'section', 'assigned_to', 'created_by',
+                            'linked_document', 'linked_revision')
+        )
+
+    def get_serializer_class(self):
+        if self.action in ('retrieve', 'create', 'update', 'partial_update'):
+            return WorkLedgerDetailSerializer
+        return WorkLedgerListSerializer
+
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        entry = serializer.save(created_by=self.request.user)
+        WorkLedgerService.log_create(entry, self.request.user)
+
+    def perform_update(self, serializer):
+        entry = serializer.save()
+        WorkLedgerService.log_update(entry, self.request.user)

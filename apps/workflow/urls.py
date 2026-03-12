@@ -1,11 +1,8 @@
 from rest_framework.routers import DefaultRouter
-from django.urls import path, include
-from apps.workflow.views import WorkLedgerViewSet, WorkTypeViewSet, VendorViewSet, TenderViewSet
+from apps.workflow.views import WorkTypeViewSet, WorkLedgerEntryViewSet
 
 router = DefaultRouter()
-router.register(r'work-ledger', WorkLedgerViewSet, basename='work-ledger')
-router.register(r'work-types', WorkTypeViewSet, basename='work-types')
-router.register(r'vendors', VendorViewSet, basename='vendors')
-router.register(r'tenders', TenderViewSet, basename='tenders')
+router.register(r'work-types', WorkTypeViewSet, basename='work-type')
+router.register(r'work-ledger', WorkLedgerEntryViewSet, basename='work-ledger')
 
-urlpatterns = [path('', include(router.urls))]
+urlpatterns = router.urls
