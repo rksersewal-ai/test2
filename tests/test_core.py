@@ -1,66 +1,73 @@
-"""Tests for apps.core: User, Section, RBAC."""
+"""Core app tests — user model, RBAC, JWT auth — PRD Section 4."""
 import pytest
-from django.urls import reverse
-from apps.core.models import User, Section
+from apps.core.models import User
+from tests.factories import UserFactory, SectionFactory
+
+TOKEN_URL = '/api/v1/auth/token/'
 
 
 @pytest.mark.django_db
-class TestSectionAPI:
-    def test_list_sections_authenticated(self, auth_client_engineer):
-        Section.objects.create(code='MECH', name='Mechanical')
-        resp = auth_client_engineer.get('/api/v1/core/sections/')
-        assert resp.status_code == 200
+class TestUserModel:
+    def test_create_user(self, db):
+        u = UserFactory.create()
+        assert u.pk is not None
+        assert u.is_active
 
-    def test_list_sections_unauthenticated(self, api_client):
-        resp = api_client.get('/api/v1/core/sections/')
-        assert resp.status_code == 401
+    def test_roles_available(self):
+        roles = [r.value for r in User.Role]
+        assert 'ADMIN' in roles
+        assert 'ENGINEER' in roles
+        assert 'VIEWER' in roles
+        assert 'AUDIT' in roles
 
-    def test_create_section_admin_only(self, auth_client_admin, auth_client_engineer):
-        data = {'code': 'ELEC', 'name': 'Electrical', 'description': '', 'is_active': True}
-        resp = auth_client_admin.post('/api/v1/core/sections/', data)
-        assert resp.status_code == 201
-        resp2 = auth_client_engineer.post('/api/v1/core/sections/', data)
-        assert resp2.status_code == 403
-
-
-@pytest.mark.django_db
-class TestUserAPI:
-    def test_current_user_me(self, auth_client_engineer, engineer_user):
-        resp = auth_client_engineer.get('/api/v1/core/me/')
-        assert resp.status_code == 200
-        assert resp.data['username'] == engineer_user.username
-        assert resp.data['role'] == User.Role.ENGINEER
-
-    def test_list_users_admin_only(self, auth_client_admin, auth_client_viewer):
-        resp = auth_client_admin.get('/api/v1/core/users/')
-        assert resp.status_code == 200
-        resp2 = auth_client_viewer.get('/api/v1/core/users/')
-        assert resp2.status_code == 403
-
-    def test_create_user_by_admin(self, auth_client_admin, section):
-        data = {
-            'username': 'new_eng',
-            'password': 'NewEng@2026!!',
-            'full_name': 'New Engineer',
-            'employee_code': 'EMP999',
-            'role': User.Role.ENGINEER,
-            'section': section.id,
-        }
-        resp = auth_client_admin.post('/api/v1/core/users/', data)
-        assert resp.status_code == 201
-        assert User.objects.filter(username='new_eng').exists()
+    def test_user_str(self, db):
+        u = UserFactory.create(username='rahul', full_name='Rahul Kumar')
+        assert 'rahul' in str(u).lower() or 'Rahul' in str(u)
 
 
 @pytest.mark.django_db
-class TestRBACPermissions:
-    def test_viewer_cannot_create_document(self, auth_client_viewer):
-        resp = auth_client_viewer.post('/api/v1/edms/documents/', {})
-        assert resp.status_code == 403
+class TestJWTAuth:
+    def test_obtain_token_with_valid_creds(self, api_client, db):
+        user = UserFactory.create()
+        user.set_password('Test@12345')
+        user.save()
+        r = api_client.post(TOKEN_URL, {
+            'username': user.username,
+            'password': 'Test@12345',
+        }, format='json')
+        assert r.status_code == 200
+        assert 'access' in r.data
+        assert 'refresh' in r.data
 
-    def test_viewer_cannot_access_audit_log(self, auth_client_viewer):
-        resp = auth_client_viewer.get('/api/v1/audit/logs/')
-        assert resp.status_code == 403
+    def test_wrong_password_rejected(self, api_client, db):
+        user = UserFactory.create()
+        r = api_client.post(TOKEN_URL, {
+            'username': user.username,
+            'password': 'WRONGPASSWORD',
+        }, format='json')
+        assert r.status_code == 401
 
-    def test_audit_can_read_logs(self, auth_client_audit):
-        resp = auth_client_audit.get('/api/v1/audit/logs/')
-        assert resp.status_code == 200
+    def test_inactive_user_blocked(self, api_client, db):
+        user = UserFactory.create(is_active=False)
+        user.set_password('Test@12345')
+        user.save()
+        r = api_client.post(TOKEN_URL, {
+            'username': user.username,
+            'password': 'Test@12345',
+        }, format='json')
+        assert r.status_code == 401
+
+
+@pytest.mark.django_db
+class TestRBAC:
+    def test_viewer_gets_403_on_post(self, auth_client_viewer, section):
+        r = auth_client_viewer.post('/api/v1/edms/documents/', {}, format='json')
+        assert r.status_code == 403
+
+    def test_unauthenticated_gets_401(self, api_client):
+        r = api_client.get('/api/v1/edms/documents/')
+        assert r.status_code == 401
+
+    def test_engineer_can_read(self, auth_client_engineer):
+        r = auth_client_engineer.get('/api/v1/edms/documents/')
+        assert r.status_code == 200

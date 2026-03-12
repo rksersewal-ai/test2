@@ -1,0 +1,49 @@
+# ============================================================
+# PLW EDMS + LDO  —  Pinned production dependencies
+# Generated: 2026-03-12  Python 3.11  Windows Server 2019
+# ============================================================
+# Install: pip install -r requirements-lock.txt --no-deps
+# ============================================================
+
+# Core Framework
+Django==4.2.11
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+django-filter==23.5
+
+# Database
+psycopg2-binary==2.9.9
+
+# OCR Pipeline
+Pillow==10.2.0
+pytesseract==0.3.10
+pdf2image==1.17.0
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+pdfminer.six==20231228
+
+# NLP / Entity Extraction
+spacy==3.7.4
+nltk==3.8.1
+scikit-learn==1.4.1
+
+# PDF Processing
+PyMuPDF==1.23.26
+pdfplumber==0.11.0
+
+# WSGI server (Windows-compatible, replaces gunicorn)
+waitress==3.0.0
+whitenoise==6.6.0
+
+# Utilities
+python-decouple==3.8
+django-extensions==3.2.3
+
+# Security
+django-ratelimit==4.1.0
+
+# Testing (included for CI — omit on production if desired)
+pytest==8.1.1
+pytest-django==4.8.0
+factory-boy==3.3.0

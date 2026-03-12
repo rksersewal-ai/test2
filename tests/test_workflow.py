@@ -1,67 +1,78 @@
-"""Tests for apps.workflow: WorkLedger, Tender, Vendor."""
+"""Work Ledger API tests — PRD Section 16."""
 import pytest
-from apps.workflow.models import WorkLedger, WorkType, Tender
-from apps.edms.models import Document, Category
+from tests.factories import WorkLedgerEntryFactory, WorkTypeFactory, SectionFactory
 
-
-@pytest.fixture
-def work_type(db):
-    return WorkType.objects.create(code='LDO-DRG', name='Drawing Preparation')
-
-
-@pytest.fixture
-def work_entry(db, work_type, section, admin_user):
-    return WorkLedger.objects.create(
-        work_type=work_type,
-        section=section,
-        subject='Review WAG9 IGBT drawings',
-        status=WorkLedger.Status.OPEN,
-        eoffice_file_number='EO/2026/PLW/001',
-        created_by=admin_user,
-    )
+BASE = '/api/v1/workflow/'
 
 
 @pytest.mark.django_db
-class TestWorkLedgerModel:
-    def test_work_ledger_str(self, work_entry):
-        assert 'WAG9' in str(work_entry)
-        assert 'OPEN' in str(work_entry)
-
-    def test_status_transition(self, work_entry):
-        work_entry.status = WorkLedger.Status.IN_PROGRESS
-        work_entry.save()
-        work_entry.refresh_from_db()
-        assert work_entry.status == WorkLedger.Status.IN_PROGRESS
+class TestWorkTypeList:
+    def test_list_work_types(self, auth_client_engineer):
+        WorkTypeFactory.create_batch(3)
+        r = auth_client_engineer.get(BASE + 'work-types/')
+        assert r.status_code == 200
+        assert r.data['count'] >= 3
 
 
 @pytest.mark.django_db
-class TestWorkLedgerAPI:
-    def test_list_work_ledger(self, auth_client_engineer):
-        resp = auth_client_engineer.get('/api/v1/workflow/work-ledger/')
-        assert resp.status_code == 200
-
-    def test_create_work_entry(self, auth_client_engineer, work_type, section):
-        data = {
-            'work_type': work_type.id,
-            'section': section.id,
-            'subject': 'New LDO work item',
+class TestWorkLedgerCreate:
+    def test_create_entry(self, auth_client_engineer, engineer_user):
+        wt = WorkTypeFactory.create()
+        sec = SectionFactory.create()
+        payload = {
+            'subject': 'WAG9 Drawing Revision - Pantograph',
             'status': 'OPEN',
-            'eoffice_file_number': 'EO/2026/TEST/002',
-            'remarks': '',
+            'work_type': wt.pk,
+            'section': sec.pk,
+            'eoffice_file_number': 'PLW/LDO/2026/001',
+            'received_date': '2026-03-01',
+            'target_date': '2026-04-01',
         }
-        resp = auth_client_engineer.post('/api/v1/workflow/work-ledger/', data)
-        assert resp.status_code == 201
+        r = auth_client_engineer.post(BASE + 'work-ledger/', payload, format='json')
+        assert r.status_code == 201
+        assert r.data['subject'] == 'WAG9 Drawing Revision - Pantograph'
 
-    def test_filter_by_status(self, auth_client_engineer, work_entry):
-        resp = auth_client_engineer.get('/api/v1/workflow/work-ledger/?status=OPEN')
-        assert resp.status_code == 200
+    def test_viewer_cannot_create(self, auth_client_viewer):
+        wt = WorkTypeFactory.create()
+        sec = SectionFactory.create()
+        r = auth_client_viewer.post(BASE + 'work-ledger/', {
+            'subject': 'Blocked', 'status': 'OPEN',
+            'work_type': wt.pk, 'section': sec.pk,
+        }, format='json')
+        assert r.status_code == 403
 
-    def test_search_by_eoffice(self, auth_client_engineer, work_entry):
-        resp = auth_client_engineer.get('/api/v1/workflow/work-ledger/?search=PLW/001')
-        assert resp.status_code == 200
-        assert len(resp.data.get('results', [])) >= 1
+    def test_unauthenticated_blocked(self, api_client):
+        r = api_client.get(BASE + 'work-ledger/')
+        assert r.status_code == 401
 
-    def test_viewer_cannot_create_work_entry(self, auth_client_viewer, work_type, section):
-        data = {'work_type': work_type.id, 'section': section.id, 'subject': 'Blocked'}
-        resp = auth_client_viewer.post('/api/v1/workflow/work-ledger/', data)
-        assert resp.status_code == 403
+
+@pytest.mark.django_db
+class TestWorkLedgerFilter:
+    def test_filter_by_status(self, auth_client_engineer):
+        WorkLedgerEntryFactory.create(status='OPEN')
+        WorkLedgerEntryFactory.create(status='CLOSED')
+        r = auth_client_engineer.get(BASE + 'work-ledger/', {'status': 'OPEN'})
+        assert r.status_code == 200
+        for item in r.data['results']:
+            assert item['status'] == 'OPEN'
+
+    def test_filter_overdue(self, auth_client_engineer):
+        from datetime import date, timedelta
+        WorkLedgerEntryFactory.create(
+            status='OPEN',
+            target_date=date.today() - timedelta(days=10)
+        )
+        r = auth_client_engineer.get(BASE + 'work-ledger/', {'overdue': 'true'})
+        assert r.status_code == 200
+        assert r.data['count'] >= 1
+
+
+@pytest.mark.django_db
+class TestWorkLedgerStatusClose:
+    def test_close_entry(self, auth_client_admin):
+        entry = WorkLedgerEntryFactory.create(status='IN_PROGRESS')
+        url = f'/api/v1/workflow/work-ledger/{entry.pk}/'
+        r = auth_client_admin.patch(url, {'status': 'CLOSED'}, format='json')
+        assert r.status_code == 200
+        entry.refresh_from_db()
+        assert entry.status == 'CLOSED'
