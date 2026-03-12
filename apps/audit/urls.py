@@ -1,8 +1,7 @@
-from django.urls import path
-from apps.audit.views import AuditLogListView, AuditLogDetailView, DocumentAccessLogListView
+from rest_framework.routers import DefaultRouter
+from apps.audit.views import AuditLogViewSet
 
-urlpatterns = [
-    path('logs/', AuditLogListView.as_view(), name='audit-log-list'),
-    path('logs/<int:pk>/', AuditLogDetailView.as_view(), name='audit-log-detail'),
-    path('document-access/', DocumentAccessLogListView.as_view(), name='document-access-log-list'),
-]
+router = DefaultRouter()
+router.register(r'logs', AuditLogViewSet, basename='audit-log')
+
+urlpatterns = router.urls

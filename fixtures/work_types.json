@@ -1,0 +1,12 @@
+[
+  {"model": "workflow.worktype", "pk": 1,  "fields": {"name": "Drawing Revision",              "code": "DRW_REV",    "description": "Revision of engineering drawings",                   "is_active": true}},
+  {"model": "workflow.worktype", "pk": 2,  "fields": {"name": "Tender Technical Evaluation",  "code": "TND_EVAL",   "description": "Technical evaluation for procurement tenders",        "is_active": true}},
+  {"model": "workflow.worktype", "pk": 3,  "fields": {"name": "Eligibility Criteria",          "code": "ELIG_CRIT",  "description": "Vendor eligibility criteria recording",              "is_active": true}},
+  {"model": "workflow.worktype", "pk": 4,  "fields": {"name": "Controlled Copy Issue",         "code": "CTRL_COPY",  "description": "Issue of controlled copy of document",              "is_active": true}},
+  {"model": "workflow.worktype", "pk": 5,  "fields": {"name": "RDSO Modification",             "code": "RDSO_MOD",   "description": "Implementation of RDSO modification notice",         "is_active": true}},
+  {"model": "workflow.worktype", "pk": 6,  "fields": {"name": "Prototype / CCA Record",        "code": "PROTO_CCA",  "description": "Prototype inspection or CCA record reference",       "is_active": true}},
+  {"model": "workflow.worktype", "pk": 7,  "fields": {"name": "External Correspondence",       "code": "EXT_CORR",   "description": "External correspondence with railway departments",    "is_active": true}},
+  {"model": "workflow.worktype", "pk": 8,  "fields": {"name": "Specification Review",          "code": "SPEC_REV",   "description": "Review or update of technical specification",        "is_active": true}},
+  {"model": "workflow.worktype", "pk": 9,  "fields": {"name": "IS / DIN / IEC Standard Update","code": "STD_UPD",   "description": "Adoption of new or revised engineering standard",     "is_active": true}},
+  {"model": "workflow.worktype", "pk": 10, "fields": {"name": "General Correspondence",        "code": "GEN_CORR",   "description": "General incoming / outgoing LDO correspondence",     "is_active": true}}
+]
