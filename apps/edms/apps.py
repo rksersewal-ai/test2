@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class EdmsConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.edms'
+    verbose_name = 'EDMS'
