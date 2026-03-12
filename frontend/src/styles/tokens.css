@@ -1,95 +1,199 @@
 /**
- * Design Tokens — derived from Figma team library "Rahul's team library"
- * Styles extracted: Iris/100, Iris/80, Iris/60, Fuschia/100, Fuschia/80, Fuschia/60
- * Text styles: Header 1, Header 2, Body
- * Source: Figma file key 1wpeEMxQYcZMvlT4PkBMKD (last modified 2026-03-06)
+ * ============================================================
+ * EDMS ENTERPRISE DESIGN SYSTEM — DESIGN TOKENS
+ * Figma source: Iris + Fuschia palette (team library)
+ * Spec: enterprise-grade, data-dense, SAP/GOI-portal quality
+ * ============================================================
  */
 
 :root {
-  /* === COLOUR TOKENS === */
+  /* ────────────────────────────────────────────────────────
+   * TYPOGRAPHY — compact enterprise scale
+   * Base: 13px | scale driven by --text-scale multiplier
+   * ──────────────────────────────────────────────────────── */
+  --text-scale: 1;                          /* controlled by TextScaleContext */
 
-  /* Iris (Primary — Indian Railways blue-indigo) */
-  --color-iris-100: #1E3A6E;    /* Full strength — nav, primary buttons */
-  --color-iris-80:  #3B5998;    /* 80% — active states, links */
-  --color-iris-60:  #6B85B5;    /* 60% — hover, borders, secondary text */
+  --font-family-base:    'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  --font-family-mono:    'JetBrains Mono', 'Consolas', 'Courier New', monospace;
 
-  /* Fuschia (Accent — highlight, badges, OCR status) */
-  --color-fuschia-100: #8B1A6B;  /* Full strength — critical badges, alerts */
-  --color-fuschia-80:  #B0428E;  /* 80% — warning indicators */
-  --color-fuschia-60:  #C97CB4;  /* 60% — subtle accents */
+  /* Raw sizes (multiplied by --text-scale at usage) */
+  --fs-page-title:  calc(20px * var(--text-scale));  /* h1 */
+  --fs-section:     calc(16px * var(--text-scale));  /* h2 */
+  --fs-card-title:  calc(14px * var(--text-scale));  /* h3 / card headers */
+  --fs-body:        calc(13px * var(--text-scale));  /* default body */
+  --fs-th:          calc(13px * var(--text-scale));  /* table header */
+  --fs-td:          calc(12px * var(--text-scale));  /* table cell */
+  --fs-label:       calc(12px * var(--text-scale));  /* form labels */
+  --fs-btn:         calc(13px * var(--text-scale));  /* buttons */
+  --fs-helper:      calc(11px * var(--text-scale));  /* helper / caption */
+  --fs-badge:       calc(11px * var(--text-scale));  /* badges */
+  --fs-mono:        calc(12px * var(--text-scale));  /* monospaced data */
 
-  /* Neutral scale */
-  --color-neutral-900: #111827;
-  --color-neutral-700: #374151;
-  --color-neutral-500: #6B7280;
-  --color-neutral-300: #D1D5DB;
-  --color-neutral-100: #F3F4F6;
-  --color-neutral-50:  #F9FAFB;
-  --color-white:       #FFFFFF;
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold: 600;
+  --fw-bold:    700;
+
+  --lh-tight:   1.2;
+  --lh-snug:    1.35;
+  --lh-normal:  1.5;
+
+  /* ────────────────────────────────────────────────────────
+   * SPACING — compact enterprise scale (4px grid)
+   * ──────────────────────────────────────────────────────── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ────────────────────────────────────────────────────────
+   * COLOUR SYSTEM — Iris (primary) + Fuschia (accent)
+   * Sourced from Figma team library (file: 1wpeEMxQYcZMvlT4PkBMKD)
+   * ──────────────────────────────────────────────────────── */
+
+  /* Primary — Iris (Indian Railways indigo-blue) */
+  --c-primary-900: #0F2550;
+  --c-primary-800: #1E3A6E;
+  --c-primary-700: #1E4080;
+  --c-primary-600: #2455A4;
+  --c-primary-500: #3B5998;
+  --c-primary-400: #5273B0;
+  --c-primary-300: #6B85B5;
+  --c-primary-200: #A8BCE0;
+  --c-primary-100: #D6E2F5;
+  --c-primary-50:  #EDF2FB;
+
+  /* Accent — Fuschia */
+  --c-accent-900: #5B0047;
+  --c-accent-700: #8B1A6B;
+  --c-accent-500: #B0428E;
+  --c-accent-300: #C97CB4;
+  --c-accent-100: #F3D6EB;
 
   /* Semantic */
-  --color-success:  #16A34A;
-  --color-warning:  #D97706;
-  --color-error:    #DC2626;
-  --color-info:     var(--color-iris-80);
+  --c-success-700: #15803D;
+  --c-success-500: #22C55E;
+  --c-success-100: #DCFCE7;
+  --c-warning-700: #B45309;
+  --c-warning-500: #F59E0B;
+  --c-warning-100: #FEF3C7;
+  --c-danger-700:  #B91C1C;
+  --c-danger-500:  #EF4444;
+  --c-danger-100:  #FEE2E2;
+  --c-info-700:    #1D4ED8;
+  --c-info-500:    #3B82F6;
+  --c-info-100:    #DBEAFE;
 
-  /* === TYPOGRAPHY TOKENS === */
-  /* Figma text styles: Header 1, Header 2, Body */
+  /* Neutral */
+  --c-neutral-950: #0A0A0A;
+  --c-neutral-900: #111827;
+  --c-neutral-800: #1F2937;
+  --c-neutral-700: #374151;
+  --c-neutral-600: #4B5563;
+  --c-neutral-500: #6B7280;
+  --c-neutral-400: #9CA3AF;
+  --c-neutral-300: #D1D5DB;
+  --c-neutral-200: #E5E7EB;
+  --c-neutral-100: #F3F4F6;
+  --c-neutral-50:  #F9FAFB;
+  --c-white:       #FFFFFF;
 
-  --font-family-base: 'Inter', 'Segoe UI', Arial, sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'Courier New', monospace;
+  /* Semantic aliases (Light theme) */
+  --c-bg:           #F0F2F5;           /* app background */
+  --c-surface:      var(--c-white);    /* card / panel surface */
+  --c-surface-alt:  var(--c-neutral-50); /* alternate row / subtle surface */
+  --c-border:       var(--c-neutral-200);
+  --c-border-strong: var(--c-neutral-300);
+  --c-text-primary: var(--c-neutral-900);
+  --c-text-secondary: var(--c-neutral-500);
+  --c-text-disabled: var(--c-neutral-400);
+  --c-text-inverse: var(--c-white);
 
-  /* Header 1 — page titles */
-  --font-size-h1:    1.75rem;   /* 28px */
-  --font-weight-h1:  700;
-  --line-height-h1:  1.2;
+  /* Sidebar */
+  --c-sidebar-bg:   var(--c-primary-800);
+  --c-sidebar-text: rgba(255,255,255,0.82);
+  --c-sidebar-active-bg: rgba(255,255,255,0.13);
+  --c-sidebar-active-border: var(--c-accent-500);
+  --c-sidebar-hover-bg: rgba(255,255,255,0.07);
 
-  /* Header 2 — section headings, card titles */
-  --font-size-h2:    1.25rem;   /* 20px */
-  --font-weight-h2:  600;
-  --line-height-h2:  1.3;
+  /* Focus ring */
+  --c-focus-ring: rgba(59,89,152,0.30);
 
-  /* Body — paragraph, table cells, form labels */
-  --font-size-body:    0.9375rem; /* 15px */
-  --font-weight-body:  400;
-  --line-height-body:  1.5;
-
-  /* Small / caption */
-  --font-size-sm:    0.8125rem; /* 13px */
-  --font-size-xs:    0.75rem;   /* 12px */
-
-  /* === SPACING === */
-  --space-1:  0.25rem;
-  --space-2:  0.5rem;
-  --space-3:  0.75rem;
-  --space-4:  1rem;
-  --space-5:  1.25rem;
-  --space-6:  1.5rem;
-  --space-8:  2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-
-  /* === RADIUS === */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* ────────────────────────────────────────────────────────
+   * BORDER & RADIUS
+   * ──────────────────────────────────────────────────────── */
+  --radius-xs:  2px;
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
   --radius-full: 9999px;
 
-  /* === SHADOWS === */
-  --shadow-sm:  0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md:  0 4px 12px rgba(0,0,0,0.10);
-  --shadow-lg:  0 8px 24px rgba(0,0,0,0.14);
+  --border-width: 1px;
 
-  /* === Z-INDEX === */
-  --z-sidebar: 100;
-  --z-header:  110;
-  --z-modal:   200;
-  --z-toast:   300;
+  /* ────────────────────────────────────────────────────────
+   * SHADOWS
+   * ──────────────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.10), 0 10px 10px rgba(0,0,0,0.04);
 
-  /* === LAYOUT === */
-  --sidebar-width:       240px;
-  --sidebar-collapsed:   64px;
-  --header-height:       56px;
-  --content-max-width:   1280px;
+  /* ────────────────────────────────────────────────────────
+   * LAYOUT
+   * ──────────────────────────────────────────────────────── */
+  --sidebar-width:     240px;
+  --sidebar-collapsed: 56px;
+  --header-height:     48px;
+  --content-padding:   var(--sp-5);
+
+  /* ────────────────────────────────────────────────────────
+   * COMPONENT SIZING
+   * ──────────────────────────────────────────────────────── */
+  --input-height-sm:  28px;
+  --input-height:     32px;
+  --input-height-lg:  36px;
+  --btn-height-sm:    26px;
+  --btn-height:       32px;
+  --btn-height-lg:    36px;
+  --table-row-height: 32px;
+  --table-row-dense:  26px;
+
+  /* ────────────────────────────────────────────────────────
+   * Z-INDEX STACK
+   * ──────────────────────────────────────────────────────── */
+  --z-base:     0;
+  --z-raised:   10;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-sidebar:  300;
+  --z-header:   310;
+  --z-modal:    400;
+  --z-toast:    500;
+
+  /* ────────────────────────────────────────────────────────
+   * TRANSITIONS
+   * ──────────────────────────────────────────────────────── */
+  --transition-fast:   0.1s ease;
+  --transition-base:   0.15s ease;
+  --transition-slow:   0.25s ease;
+}
+
+/* Dark theme override */
+[data-theme="dark"] {
+  --c-bg:             #0D1117;
+  --c-surface:        #161B22;
+  --c-surface-alt:    #1C2128;
+  --c-border:         #30363D;
+  --c-border-strong:  #484F58;
+  --c-text-primary:   #E6EDF3;
+  --c-text-secondary: #8B949E;
+  --c-text-disabled:  #484F58;
+  --c-sidebar-bg:     #0D1117;
 }
