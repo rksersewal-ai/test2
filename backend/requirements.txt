@@ -1,0 +1,54 @@
+# ============================================================
+# PLW EDMS — Python Dependencies
+# Python 3.11 | Django 4.2 | PostgreSQL 15
+# ============================================================
+
+# Core Framework
+Django==4.2.11
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==24.1
+
+# Database
+psycopg2-binary==2.9.9
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.1
+PyJWT==2.8.0
+argon2-cffi==23.1.0
+cryptography==42.0.5
+
+# OCR & Image Processing
+pytesseract==0.3.10
+Pillow==10.2.0
+pdf2image==1.17.0
+opencv-python==4.9.0.80
+PyPDF2==3.0.1
+
+# Text Processing
+spacy==3.7.4
+nltk==3.8.1
+
+# Utilities
+python-dotenv==1.0.1
+python-dateutil==2.9.0
+pytz==2024.1
+
+# API & Documentation
+drf-spectacular==0.27.1
+
+# Background Tasks
+schedule==1.2.1
+apscheduler==3.10.4
+
+# File Handling
+python-magic-bin==0.4.14
+
+# Development
+django-extensions==3.2.3
+
+# Testing
+pytest==8.1.1
+pytest-django==4.8.0
+factory-boy==3.3.0
+coverage==7.4.4
