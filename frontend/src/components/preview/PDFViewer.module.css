@@ -1,0 +1,98 @@
+.viewerWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.pageControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-helper);
+  color: var(--color-text-secondary);
+  min-height: 32px;
+}
+
+.navBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-primary);
+  transition: background 0.1s;
+}
+.navBtn:hover:not(:disabled) { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.navBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pageInfo { font-size: var(--font-size-helper); }
+.zoomLabel { margin-left: auto; font-weight: 600; color: var(--color-primary); }
+.rotLabel  { font-size: var(--font-size-helper); color: var(--color-text-secondary); }
+
+.viewerContainer {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3);
+  background: #525659;
+  cursor: default;
+}
+.viewerContainer.panning { cursor: grabbing; }
+
+.pageFrame {
+  display: inline-block;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  position: relative;
+  background: #fff;
+}
+
+.pdfIframe {
+  width: 794px;    /* A4 at 96dpi */
+  height: 1123px;
+  border: none;
+  display: block;
+}
+
+/* OCR entity chips rendered over the viewer area */
+.entityChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.92);
+  border: 1.5px solid #3b82f6;
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+  margin: 3px 2px;
+  vertical-align: middle;
+}
+.entityChip:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.2); transform: translateY(-1px); }
+
+.entityBadge {
+  color: #fff;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.entityValue {
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 11px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
