@@ -48,13 +48,13 @@ class DocumentFactory(DjangoModelFactory):
     class Meta:
         model = Document
 
-    doc_number    = factory.Sequence(lambda n: f'PLW/TEST/2024/{n:04d}')
-    title         = factory.LazyAttribute(lambda o: f'Test Document {o.doc_number}')
-    doc_type      = 'SPEC'
+    document_number    = factory.Sequence(lambda n: f'PLW/TEST/2024/{n:04d}')
+    title         = factory.LazyAttribute(lambda o: f'Test Document {o.document_number}')
+    # doc_type      = 'SPEC'
     status        = 'ACTIVE'
     section       = factory.SubFactory(SectionFactory)
     created_by    = factory.SubFactory(UserFactory)
-    language      = 'EN'
+    # language      = 'EN'
 
 
 class RevisionFactory(DjangoModelFactory):
@@ -65,7 +65,7 @@ class RevisionFactory(DjangoModelFactory):
     revision_number = factory.Sequence(lambda n: f'R{n:02d}')
     status        = 'ACTIVE'
     created_by    = factory.SubFactory(UserFactory)
-    effective_date = factory.LazyFunction(timezone.now)
+    revision_date = factory.LazyFunction(timezone.now)
 
 
 class FileAttachmentFactory(DjangoModelFactory):
