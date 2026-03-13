@@ -5,6 +5,7 @@ Returns a single JSON object with live counts suitable for the
 React DashboardPage stat cards (no caching — LAN query is fast enough).
 """
 from django.utils import timezone
+from django.db.models import Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions
@@ -18,22 +19,22 @@ class DashboardStatsView(APIView):
 
     def get(self, request):
         # Documents
-        doc_qs = Document.objects.values('status')
-        doc_counts = {}
-        for row in doc_qs.iterator():
-            doc_counts[row['status']] = doc_counts.get(row['status'], 0) + 1
+        doc_counts = {
+            item['status']: item['count']
+            for item in Document.objects.values('status').annotate(count=Count('status'))
+        }
 
         # Work ledger
-        wl_qs = WorkLedgerEntry.objects.values('status')
-        wl_counts = {}
-        for row in wl_qs.iterator():
-            wl_counts[row['status']] = wl_counts.get(row['status'], 0) + 1
+        wl_counts = {
+            item['status']: item['count']
+            for item in WorkLedgerEntry.objects.values('status').annotate(count=Count('status'))
+        }
 
         # OCR
-        ocr_qs = OCRQueue.objects.values('status')
-        ocr_counts = {}
-        for row in ocr_qs.iterator():
-            ocr_counts[row['status']] = ocr_counts.get(row['status'], 0) + 1
+        ocr_counts = {
+            item['status']: item['count']
+            for item in OCRQueue.objects.values('status').annotate(count=Count('status'))
+        }
 
         # Documents by section (top 15)
         from apps.edms.repository import DocumentRepository
