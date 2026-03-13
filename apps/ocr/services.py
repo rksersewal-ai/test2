@@ -48,7 +48,7 @@ class OCRService:
     @staticmethod
     def process_file(queue_id: int):
         """Main OCR processing entry - called by background worker."""
-        from apps.ocr.models import OCRQueue, OCRResult, ExtractedEntity
+        from apps.ocr.models import OCRQueue, OCRResult
         item = OCRQueue.objects.select_related('file').get(pk=queue_id)
         item.status = OCRQueue.Status.PROCESSING
         item.started_at = timezone.now()
