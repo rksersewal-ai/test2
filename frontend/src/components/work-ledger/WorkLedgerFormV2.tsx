@@ -1,23 +1,21 @@
 // =============================================================================
 // FILE: frontend/src/components/work-ledger/WorkLedgerFormV2.tsx
-// PURPOSE: Updated Work Ledger form wired to admin-managed dropdowns via
-//          DropdownSelect component. Replaces hardcoded <select> options.
+// FIX (#16): Removed unused 'workLedgerApi' import (lint warning eliminated).
 // =============================================================================
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { WorkLedgerFormData } from '../../types/workLedger';
 import { DropdownSelect } from '../common/DropdownSelect';
 import { DROPDOWN_GROUPS } from '../../types/dropdown';
 import { CategoryDynamicFields } from './CategoryDynamicFields';
 import { useDropdown } from '../../hooks/useDropdown';
-import { workLedgerApi } from '../../services/workLedgerApi';
 
 const EMPTY_FORM: WorkLedgerFormData = {
   received_date: '',
   closed_date: '',
-  section: 'Mechanical',
+  section: '',
   engineer_id: null,
   officer_id: null,
-  status: 'Open',
+  status: 'OPEN',
   pl_number: '',
   drawing_number: '',
   drawing_revision: '',
@@ -41,23 +39,25 @@ interface Props {
 export const WorkLedgerFormV2: React.FC<Props> = ({
   initialData, onSubmit, submitLabel = 'Save',
 }) => {
-  const [form, setForm] = useState<WorkLedgerFormData>({ ...EMPTY_FORM, ...initialData });
-  const [dynamicValues, setDynamicValues] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [form, setForm]             = useState<WorkLedgerFormData>({ ...EMPTY_FORM, ...initialData });
+  const [dynamicValues, setDynamic] = useState<Record<string, string>>({});
+  const [saving, setSaving]         = useState(false);
+  const [errors, setErrors]         = useState<Record<string, string>>({});
 
-  // Work category items for radio grid – fetched from admin-managed dropdown
   const { items: categoryItems } = useDropdown(DROPDOWN_GROUPS.WORK_CATEGORY);
+  // Section items come from core Section API (FIX #11 - not from dropdown_master)
+  const { items: sectionItems }  = useDropdown('core_section');
 
   const setField = <K extends keyof WorkLedgerFormData>(key: K, value: WorkLedgerFormData[K]) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm(prev => ({ ...prev, [key]: value }));
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!form.received_date) errs.received_date = 'Received date is required.';
-    if (!form.work_category_code) errs.work_category_code = 'Select a work category.';
-    if (!form.description.trim()) errs.description = 'Description is required.';
-    if (form.status === 'Closed' && !form.closed_date)
+    if (!form.received_date)          errs.received_date     = 'Received date is required.';
+    if (!form.section)                errs.section           = 'Section is required.';
+    if (!form.work_category_code)     errs.work_category_code = 'Select a work category.';
+    if (!form.description.trim())     errs.description       = 'Description is required.';
+    if (form.status === 'CLOSED' && !form.closed_date)
       errs.closed_date = 'Closed date required when status is Closed.';
     if (form.closed_date && form.received_date && form.closed_date < form.received_date)
       errs.closed_date = 'Closed date cannot be before received date.';
@@ -80,50 +80,43 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
     <form className="wl-form" onSubmit={handleSubmit}>
       <h2 className="wl-form__title">WORK LEDGER ENTRY</h2>
 
-      {/* ── Basic Information ─────────────────────────────────── */}
       <fieldset className="wl-section">
         <legend>Basic Information</legend>
 
         <div className="wl-field">
           <label htmlFor="f-received-date">Received Date *</label>
           <input id="f-received-date" type="date" value={form.received_date}
-            onChange={(e) => setField('received_date', e.target.value)} />
+            onChange={e => setField('received_date', e.target.value)} />
           {errors.received_date && <span className="wl-error">{errors.received_date}</span>}
         </div>
 
         <div className="wl-field">
           <label htmlFor="f-closed-date">Closed Date</label>
           <input id="f-closed-date" type="date" value={form.closed_date}
-            onChange={(e) => setField('closed_date', e.target.value)} />
+            onChange={e => setField('closed_date', e.target.value)} />
           {errors.closed_date && <span className="wl-error">{errors.closed_date}</span>}
         </div>
 
-        {/* Section – from admin dropdown */}
+        {/* Section from core.Section API (not dropdown_master) - FIX #11 */}
         <div className="wl-field">
           <label htmlFor="f-section">Section *</label>
-          <DropdownSelect
-            id="f-section"
-            groupKey={DROPDOWN_GROUPS.SECTION}
-            value={form.section}
-            onChange={(code) => setField('section', code as any)}
-            required
-          />
+          <select id="f-section" value={form.section}
+            onChange={e => setField('section', e.target.value)} required>
+            <option value="">-- Select Section --</option>
+            {sectionItems.map(s => (
+              <option key={s.code} value={s.code}>{s.label}</option>
+            ))}
+          </select>
+          {errors.section && <span className="wl-error">{errors.section}</span>}
         </div>
 
-        {/* Work Status – from admin dropdown */}
         <div className="wl-field">
           <label htmlFor="f-status">Work Status *</label>
-          <DropdownSelect
-            id="f-status"
-            groupKey={DROPDOWN_GROUPS.WORK_STATUS}
-            value={form.status}
-            onChange={(code) => setField('status', code as any)}
-            required
-          />
+          <DropdownSelect id="f-status" groupKey={DROPDOWN_GROUPS.WORK_STATUS}
+            value={form.status} onChange={code => setField('status', code as any)} required />
         </div>
       </fieldset>
 
-      {/* ── Reference Information ─────────────────────────────── */}
       <fieldset className="wl-section">
         <legend>Reference Information</legend>
         {([
@@ -137,28 +130,21 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
           <div key={key} className="wl-field">
             <label htmlFor={`f-${key}`}>{label}</label>
             <input id={`f-${key}`} type="text" value={(form[key] as string) ?? ''}
-              onChange={(e) => setField(key, e.target.value)} />
+              onChange={e => setField(key, e.target.value)} />
           </div>
         ))}
       </fieldset>
 
-      {/* ── Work Category (from admin dropdown, radio grid) ────── */}
       <fieldset className="wl-section">
         <legend>Work Category *</legend>
         {errors.work_category_code &&
           <span className="wl-error">{errors.work_category_code}</span>}
         <div className="wl-category-grid">
-          {categoryItems.map((cat) => (
+          {categoryItems.map(cat => (
             <label key={cat.code} className="wl-checkbox-label">
-              <input
-                type="radio"
-                name="work_category_code"
-                value={cat.code}
+              <input type="radio" name="work_category_code" value={cat.code}
                 checked={form.work_category_code === cat.code}
-                onChange={() => {
-                  setField('work_category_code', cat.code);
-                  setDynamicValues({});
-                }}
+                onChange={() => { setField('work_category_code', cat.code); setDynamic({}); }}
               />
               {cat.label}
             </label>
@@ -166,26 +152,24 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
         </div>
       </fieldset>
 
-      {/* ── Category Dynamic Fields ────────────────────────────── */}
       <CategoryDynamicFields
         categoryCode={form.work_category_code}
         values={dynamicValues}
-        onChange={(k, v) => setDynamicValues((prev) => ({ ...prev, [k]: v }))}
+        onChange={(k, v) => setDynamic(prev => ({ ...prev, [k]: v }))}
       />
 
-      {/* ── Details ───────────────────────────────────────────── */}
       <fieldset className="wl-section">
         <legend>Details</legend>
         <div className="wl-field">
           <label htmlFor="f-description">Work Description *</label>
           <textarea id="f-description" rows={4} value={form.description}
-            onChange={(e) => setField('description', e.target.value)} />
+            onChange={e => setField('description', e.target.value)} />
           {errors.description && <span className="wl-error">{errors.description}</span>}
         </div>
         <div className="wl-field">
           <label htmlFor="f-remarks">Remarks / Notes</label>
           <textarea id="f-remarks" rows={3} value={form.remarks ?? ''}
-            onChange={(e) => setField('remarks', e.target.value)} />
+            onChange={e => setField('remarks', e.target.value)} />
         </div>
       </fieldset>
 

@@ -1,79 +1,71 @@
 // =============================================================================
 // FILE: frontend/src/services/workLedgerApi.ts
-// PURPOSE: API client for Work Ledger endpoints
+// FIX (#8): Replaced localStorage token injection with cookie-based apiFetch.
+// FIX (#6): API now returns paginated envelopes - updated response types.
 // =============================================================================
-import type {
-  WorkCategory,
-  WorkLedgerListItem,
-  WorkLedgerFull,
-  WorkLedgerFormData,
-  ActivityReportRow,
-  MonthlyKpiResponse,
-  DashboardSummary,
-  ActivityReportFilters,
-} from '../types/workLedger';
+import { apiFetch } from './authApi';
+import type { WorkLedgerFormData, WorkLedgerListItem, WorkLedgerDetail } from '../types/workLedger';
 
 const BASE = '/api/work-ledger';
 
-async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
-  return res.json();
+export interface PaginatedResponse<T> {
+  results:     T[];
+  total_count: number;
+  page:        number;
+  page_size:   number;
+  total_pages: number;
 }
 
 export const workLedgerApi = {
-  getCategories(): Promise<WorkCategory[]> {
-    return apiFetch(`${BASE}/categories/`);
+  list(params?: {
+    section?: string;
+    status?: string;
+    engineer_id?: number;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<WorkLedgerListItem>> {
+    const qs = new URLSearchParams(
+      Object.entries(params ?? {}).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return apiFetch(`${BASE}/entries/?${qs}`);
   },
 
-  listEntries(params?: Record<string, string>): Promise<WorkLedgerListItem[]> {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return apiFetch(`${BASE}/entries/${qs}`);
-  },
-
-  getEntry(workId: number): Promise<WorkLedgerFull> {
+  get(workId: string): Promise<WorkLedgerDetail> {
     return apiFetch(`${BASE}/entries/${workId}/`);
   },
 
-  createEntry(data: WorkLedgerFormData): Promise<WorkLedgerFull> {
+  create(data: WorkLedgerFormData): Promise<WorkLedgerDetail> {
     return apiFetch(`${BASE}/entries/`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  updateEntry(workId: number, data: Partial<WorkLedgerFormData>): Promise<WorkLedgerFull> {
+  update(workId: string, data: WorkLedgerFormData): Promise<WorkLedgerDetail> {
     return apiFetch(`${BASE}/entries/${workId}/`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  getDashboard(year?: number, month?: number): Promise<DashboardSummary> {
-    const qs = year && month ? `?year=${year}&month=${month}` : '';
-    return apiFetch(`${BASE}/dashboard/monthly-summary/${qs}`);
+  activityReport(params?: Record<string, string>): Promise<PaginatedResponse<any>> {
+    const qs = new URLSearchParams(params ?? {}).toString();
+    return apiFetch(`${BASE}/reports/activity/?${qs}`);
   },
 
-  getActivityReport(filters: ActivityReportFilters): Promise<ActivityReportRow[]> {
-    const qs = '?' + new URLSearchParams(filters as Record<string, string>).toString();
-    return apiFetch(`${BASE}/reports/activity/${qs}`);
+  monthlyKpi(year: number, month: number, section?: string): Promise<any> {
+    const qs = new URLSearchParams(
+      Object.entries({ year, month, ...(section ? { section } : {}) }).map(([k, v]) => [k, String(v)])
+    ).toString();
+    return apiFetch(`${BASE}/reports/monthly-kpi/?${qs}`);
   },
 
-  getMonthlyKpi(year: number, month: number, section?: string): Promise<MonthlyKpiResponse> {
-    let qs = `?year=${year}&month=${month}`;
-    if (section) qs += `&section=${section}`;
-    return apiFetch(`${BASE}/reports/monthly-kpi/${qs}`);
+  dashboardSummary(year: number, month: number): Promise<any> {
+    return apiFetch(`${BASE}/dashboard/monthly-summary/?year=${year}&month=${month}`);
   },
 
-  getExportUrl(filters: ActivityReportFilters, format: 'csv' | 'xlsx' | 'pdf'): string {
-    const params = { ...filters, format } as Record<string, string>;
-    return `${BASE}/reports/activity/export/?` + new URLSearchParams(params).toString();
+  exportUrl(params?: Record<string, string>): string {
+    const qs = new URLSearchParams({ format: 'csv', ...(params ?? {}) }).toString();
+    return `${BASE}/reports/activity/export/?${qs}`;
   },
 };

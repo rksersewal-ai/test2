@@ -1,36 +1,21 @@
 // =============================================================================
 // FILE: frontend/src/services/dropdownApi.ts
-// PURPOSE: API client for dropdown public + admin endpoints
+// FIX (#8): Replaced manual localStorage token injection with apiFetch
+//           which uses credentials:'include' (httpOnly cookie).
 // =============================================================================
+import { apiFetch } from './authApi';
 import type { DropdownItem, DropdownGroup, DropdownCreatePayload, DropdownUpdatePayload } from '../types/dropdown';
 
 const BASE_PUBLIC = '/api/dropdowns';
 const BASE_ADMIN  = '/api/admin/dropdowns';
 
-async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
-
 export const dropdownApi = {
-  // ---- Public (all users) ----
   getAllGroups(): Promise<DropdownGroup[]> {
     return apiFetch(`${BASE_PUBLIC}/`);
   },
   getGroup(groupKey: string): Promise<DropdownItem[]> {
     return apiFetch(`${BASE_PUBLIC}/${groupKey}/`);
   },
-
-  // ---- Admin only ----
   adminListGroup(groupKey: string): Promise<DropdownItem[]> {
     return apiFetch(`${BASE_ADMIN}/${groupKey}/`);
   },
