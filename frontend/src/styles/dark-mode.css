@@ -1,0 +1,122 @@
+/*
+ * =============================================================================
+ * FILE: frontend/src/styles/dark-mode.css
+ * SPRINT 3 — Feature #10: Dark Mode
+ * PURPOSE : Structural dark-mode overrides that go beyond CSS variable swaps.
+ *           Handles image dimming, scrollbars, code blocks, selection colour,
+ *           and component-level fixes that can't be resolved by token swap alone.
+ *
+ * Import order: global.css → tokens.css → components.css → dark-mode.css
+ * =============================================================================
+ */
+
+/* ---- Scrollbar (Chromium) ---- */
+[data-theme="dark"] ::-webkit-scrollbar        { width: 8px; height: 8px; }
+[data-theme="dark"] ::-webkit-scrollbar-track  { background: #0D1117; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb  { background: #30363D; border-radius: 4px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #484F58; }
+
+/* ---- Text selection ---- */
+[data-theme="dark"] ::selection {
+  background: rgba(88,166,255,0.25);
+  color: #E6EDF3;
+}
+
+/* ---- Images: dim slightly so they don't blaze out ---- */
+[data-theme="dark"] img:not([data-no-dim]) {
+  filter: brightness(0.88) contrast(1.02);
+  transition: filter var(--transition-fast);
+}
+[data-theme="dark"] img:not([data-no-dim]):hover {
+  filter: brightness(1) contrast(1);
+}
+
+/* ---- PDF preview iframe ---- */
+[data-theme="dark"] .pdf-preview-frame {
+  filter: invert(0.88) hue-rotate(180deg);
+}
+
+/* ---- Code / mono blocks ---- */
+[data-theme="dark"] pre,
+[data-theme="dark"] code {
+  background: #1C2128;
+  border-color: #30363D;
+  color: #79C0FF;
+}
+
+/* ---- Modal overlay ---- */
+[data-theme="dark"] .modal-overlay {
+  background: rgba(1,4,9,0.72);
+}
+
+/* ---- Toast / notification ---- */
+[data-theme="dark"] .toast {
+  background: #21262D;
+  border-color: #30363D;
+  color: #E6EDF3;
+  box-shadow: var(--shadow-lg);
+}
+
+/* ---- Dropzone drop-active glow ---- */
+[data-theme="dark"] .dropzone--active {
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.30);
+}
+
+/* ---- Bulk edit bar ---- */
+[data-theme="dark"] .bulk-edit-bar {
+  border-top-color: var(--c-bulk-bar-border);
+}
+
+/* ---- Table ---- */
+[data-theme="dark"] .edms-table thead th {
+  background: var(--c-table-header-bg);
+  border-bottom-color: var(--c-border-strong);
+}
+[data-theme="dark"] .edms-table tbody tr:hover td {
+  background: var(--c-table-row-hover);
+}
+[data-theme="dark"] .edms-table tbody tr.row--selected td {
+  background: var(--c-table-row-selected);
+}
+
+/* ---- Input / select focus ---- */
+[data-theme="dark"] .edms-input:focus,
+[data-theme="dark"] .edms-select:focus,
+[data-theme="dark"] .edms-textarea:focus {
+  border-color: var(--c-input-focus);
+  box-shadow: 0 0 0 3px var(--c-focus-ring);
+}
+
+/* ---- Status badges: adjust luminance in dark mode ---- */
+[data-theme="dark"] .badge--active     { background: #1A4731; color: #56D364; }
+[data-theme="dark"] .badge--draft      { background: #272115; color: #F0B232; }
+[data-theme="dark"] .badge--obsolete   { background: #2D1515; color: #F85149; }
+[data-theme="dark"] .badge--superseded { background: #1C2128; color: #8B949E; }
+[data-theme="dark"] .badge--open       { background: #1A3456; color: #58A6FF; }
+[data-theme="dark"] .badge--in-progress { background: #1F2D45; color: #79C0FF; }
+[data-theme="dark"] .badge--on-hold    { background: #272115; color: #F0B232; }
+[data-theme="dark"] .badge--closed     { background: #1C2128; color: #484F58; }
+
+/* ---- Theme toggle button ---- */
+.theme-toggle {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  width:           30px;
+  height:          30px;
+  border:          none;
+  border-radius:   var(--radius-md);
+  background:      transparent;
+  color:           var(--c-text-inverse);
+  font-size:       16px;
+  cursor:          pointer;
+  transition:      background var(--transition-fast);
+  opacity:         0.82;
+}
+.theme-toggle:hover {
+  background: rgba(255,255,255,0.10);
+  opacity:    1;
+}
+[data-theme="dark"] .theme-toggle:hover {
+  background: rgba(255,255,255,0.08);
+}

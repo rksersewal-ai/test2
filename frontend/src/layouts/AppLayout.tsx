@@ -1,27 +1,30 @@
 /**
  * AppLayout — Enterprise shell: sidebar + header + content
  * Sidebar: 240px, collapsible to 56px icon-only mode
- * Header: 48px, includes breadcrumb, text-scale A+/A-/Reset controls
+ * Header: 48px — text scale controls + dark mode toggle
+ * SPRINT 3: Added ThemeToggle button in header (Feature #10)
  */
 import { useState, ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTextScale } from '../context/TextScaleContext';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import './AppLayout.css';
 
 const NAV_ITEMS = [
-  { to: '/',           label: 'Dashboard',    icon: '\u{1F4CA}', end: true },
-  { to: '/documents',  label: 'Documents',    icon: '\u{1F4CB}' },
-  { to: '/work-ledger',label: 'Work Ledger',  icon: '\uD83D\uDDC2\uFE0F' },
-  { to: '/ocr-queue',  label: 'OCR Queue',    icon: '\uD83D\uDD0D' },
-  { to: '/audit',      label: 'Audit Logs',   icon: '\uD83D\uDEE1\uFE0F' },
+  { to: '/',            label: 'Dashboard',   icon: '\u{1F4CA}', end: true },
+  { to: '/documents',   label: 'Documents',   icon: '\u{1F4CB}' },
+  { to: '/work-ledger', label: 'Work Ledger', icon: '\uD83D\uDDC2\uFE0F' },
+  { to: '/ocr-queue',   label: 'OCR Queue',   icon: '\uD83D\uDD0D' },
+  { to: '/audit',       label: 'Audit Logs',  icon: '\uD83D\uDEE1\uFE0F' },
 ];
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user, logout }          = useAuth();
+  const navigate                  = useNavigate();
   const { level, increase, decrease, reset } = useTextScale();
+  const { isDark, toggleTheme }   = useTheme();
 
   return (
     <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
@@ -102,6 +105,17 @@ export function AppLayout() {
                 A⁺
               </button>
             </div>
+
+            {/* Dark mode toggle — Sprint 3 */}
+            <button
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-pressed={isDark}
+            >
+              {isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'}
+            </button>
 
             <span className="header-username">{user?.username}</span>
           </div>

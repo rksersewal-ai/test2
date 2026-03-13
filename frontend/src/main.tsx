@@ -1,35 +1,29 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+/**
+ * main.tsx — application entry point
+ * SPRINT 3: Wrapped app in <ThemeProvider> (Feature #10)
+ */
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { TextScaleProvider } from './context/TextScaleContext';
-import { ToastProvider } from './components/Feedback/Toast';
-import { AppRouter } from './routes/AppRouter';
-
-import './styles/tokens.css';
+import { ThemeProvider } from './context/ThemeContext';
+import App from './App';
 import './styles/global.css';
+import './styles/tokens.css';
 import './styles/components.css';
+import './styles/dark-mode.css';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime:          30_000,
-      retry:              1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <TextScaleProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ToastProvider>
-            <AppRouter />
-          </ToastProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </TextScaleProvider>
-  </StrictMode>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <TextScaleProvider>
+          <ThemeProvider>
+            <App />
+          </ThemeProvider>
+        </TextScaleProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>
 );
