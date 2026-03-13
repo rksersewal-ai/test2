@@ -6,7 +6,7 @@
 import re
 
 # -----------------------------------------------------------------------------
-# 1. TITLE BLOCK INTELLIGENCE
+# 1. TITLE BLOCK INTELLIGENCE (Pattern Recognition)
 # -----------------------------------------------------------------------------
 TITLE_BLOCK_PATTERNS = {
     "drawing_number": re.compile(r"(?:drg\.?\s*no\.?|drawing\s*no\.?|dwg\.?\s*no\.?)\s*[:.]?\s*([A-Za-z0-9/\-]+)", re.IGNORECASE),
@@ -70,7 +70,7 @@ GDT_SYMBOLS = {
 }
 
 # -----------------------------------------------------------------------------
-# 4. ADVANCED TECHNOLOGY TERMS (2026)
+# 4. ADVANCED TECHNOLOGY & RAILWAY MODERNIZATION (2026 Trends)
 # -----------------------------------------------------------------------------
 ADVANCED_TECH_TERMS = {
     "Digital_Twin": ["Digital Twin", "Virtual Model", "Predictive Simulation", "Asset Mirroring", "Real-time Telemetry"],
