@@ -1,3 +1,9 @@
+# =============================================================================
+# FILE: apps/edms/models.py
+# FIX (#5): Revision.prepared_by and approved_by changed from CharField
+#           to ForeignKey(settings.AUTH_USER_MODEL) for proper audit integrity.
+#           Migration note: run make_migration after merging this branch.
+# =============================================================================
 """EDMS models: Document, Revision, FileAttachment, Category."""
 from django.db import models
 from django.conf import settings
@@ -8,7 +14,10 @@ class Category(models.Model):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
-    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='children')
+    parent = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='children'
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -35,25 +44,44 @@ class DocumentType(models.Model):
 
 class Document(models.Model):
     class Status(models.TextChoices):
-        ACTIVE = 'ACTIVE', 'Active'
+        ACTIVE     = 'ACTIVE',     'Active'
         SUPERSEDED = 'SUPERSEDED', 'Superseded'
-        OBSOLETE = 'OBSOLETE', 'Obsolete'
-        DRAFT = 'DRAFT', 'Draft'
+        OBSOLETE   = 'OBSOLETE',   'Obsolete'
+        DRAFT      = 'DRAFT',      'Draft'
 
-    document_number = models.CharField(max_length=100, unique=True, db_index=True)
-    title = models.CharField(max_length=300)
-    description = models.TextField(blank=True)
-    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='documents')
-    document_type = models.ForeignKey(DocumentType, null=True, blank=True, on_delete=models.SET_NULL, related_name='documents')
-    section = models.ForeignKey('core.Section', null=True, blank=True, on_delete=models.SET_NULL, related_name='documents')
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
-    source_standard = models.CharField(max_length=100, blank=True, help_text='e.g. RDSO, IRIS, DIN, IS, ABB')
+    document_number    = models.CharField(max_length=100, unique=True, db_index=True)
+    title              = models.CharField(max_length=300)
+    description        = models.TextField(blank=True)
+    category           = models.ForeignKey(
+        Category, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='documents'
+    )
+    document_type      = models.ForeignKey(
+        DocumentType, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='documents'
+    )
+    section            = models.ForeignKey(
+        'core.Section', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='documents'
+    )
+    status             = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVE
+    )
+    source_standard    = models.CharField(
+        max_length=100, blank=True,
+        help_text='e.g. RDSO, IRIS, DIN, IS, ABB'
+    )
     eoffice_file_number = models.CharField(max_length=100, blank=True, db_index=True)
-    eoffice_subject = models.CharField(max_length=300, blank=True)
-    keywords = models.TextField(blank=True, help_text='Comma-separated search keywords')
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='documents_created')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    eoffice_subject    = models.CharField(max_length=300, blank=True)
+    keywords           = models.TextField(
+        blank=True, help_text='Comma-separated search keywords'
+    )
+    created_by         = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True,
+        on_delete=models.SET_NULL, related_name='documents_created'
+    )
+    created_at         = models.DateTimeField(auto_now_add=True)
+    updated_at         = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'edms_document'
@@ -65,21 +93,37 @@ class Document(models.Model):
 
 class Revision(models.Model):
     class Status(models.TextChoices):
-        CURRENT = 'CURRENT', 'Current'
+        CURRENT    = 'CURRENT',    'Current'
         SUPERSEDED = 'SUPERSEDED', 'Superseded'
-        DRAFT = 'DRAFT', 'Draft'
+        DRAFT      = 'DRAFT',      'Draft'
 
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='revisions')
+    document        = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name='revisions'
+    )
     revision_number = models.CharField(max_length=20)
-    revision_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CURRENT)
+    revision_date   = models.DateField(null=True, blank=True)
+    status          = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.CURRENT
+    )
     change_description = models.TextField(blank=True)
-    prepared_by = models.CharField(max_length=150, blank=True)
-    approved_by = models.CharField(max_length=150, blank=True)
+
+    # FIX (#5): Changed from CharField to FK — enables approval workflow & audit
+    prepared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='revisions_prepared'
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='revisions_approved'
+    )
+
     eoffice_ref = models.CharField(max_length=100, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='revisions_created')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_by  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True,
+        on_delete=models.SET_NULL, related_name='revisions_created'
+    )
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'edms_revision'
@@ -92,26 +136,33 @@ class Revision(models.Model):
 
 def upload_to(instance, filename):
     doc_num = instance.revision.document.document_number.replace('/', '_')
-    rev = instance.revision.revision_number
+    rev     = instance.revision.revision_number
     return os.path.join('documents', doc_num, f'rev_{rev}', filename)
 
 
 class FileAttachment(models.Model):
     class FileType(models.TextChoices):
-        PDF = 'PDF', 'PDF'
+        PDF   = 'PDF',   'PDF'
         IMAGE = 'IMAGE', 'Image'
-        TIFF = 'TIFF', 'TIFF'
+        TIFF  = 'TIFF',  'TIFF'
 
-    revision = models.ForeignKey(Revision, on_delete=models.CASCADE, related_name='files')
-    file_name = models.CharField(max_length=255)
-    file_path = models.FileField(upload_to=upload_to, max_length=500)
-    file_size_bytes = models.BigIntegerField(null=True, blank=True)
-    file_type = models.CharField(max_length=10, choices=FileType.choices, default=FileType.PDF)
-    page_count = models.IntegerField(null=True, blank=True)
-    checksum_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
-    is_primary = models.BooleanField(default=False)
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='files_uploaded')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    revision         = models.ForeignKey(
+        Revision, on_delete=models.CASCADE, related_name='files'
+    )
+    file_name        = models.CharField(max_length=255)
+    file_path        = models.FileField(upload_to=upload_to, max_length=500)
+    file_size_bytes  = models.BigIntegerField(null=True, blank=True)
+    file_type        = models.CharField(
+        max_length=10, choices=FileType.choices, default=FileType.PDF
+    )
+    page_count       = models.IntegerField(null=True, blank=True)
+    checksum_sha256  = models.CharField(max_length=64, blank=True, db_index=True)
+    is_primary       = models.BooleanField(default=False)
+    uploaded_by      = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True,
+        on_delete=models.SET_NULL, related_name='files_uploaded'
+    )
+    uploaded_at      = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'edms_file_attachment'

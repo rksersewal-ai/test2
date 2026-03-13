@@ -1,7 +1,15 @@
+# =============================================================================
+# FILE: apps/workledger/repositories.py
+# FIX (#6): Pagination added to get_activity_report and get_monthly_kpi.
+# FIX (#7): next_work_code() replaced COUNT(*) race with PostgreSQL SEQUENCE
+#           (wl_work_code_seq). Concurrent inserts now always get unique codes.
+# =============================================================================
 from django.db import connection
-from django.utils.dateparse import parse_date
 from typing import Optional
 import datetime
+
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE     = 500
 
 
 def generate_work_code(year: int, sequence: int) -> str:
@@ -9,14 +17,28 @@ def generate_work_code(year: int, sequence: int) -> str:
 
 
 def next_work_code() -> str:
+    """FIX (#7): Use a PostgreSQL per-year sequence to guarantee uniqueness
+    under concurrent inserts. Sequence is auto-created if not present.
+    The sequence name encodes the current year so codes reset each year.
+    """
     year = datetime.date.today().year
+    seq_name = f'wl_work_code_{year}_seq'
     with connection.cursor() as cur:
-        cur.execute(
-            "SELECT COUNT(*) FROM work_ledger WHERE EXTRACT(YEAR FROM received_date) = %s",
-            [year],
-        )
-        count = cur.fetchone()[0]
-    return generate_work_code(year, count + 1)
+        # Create sequence for this year if it doesn't exist yet
+        cur.execute(f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_sequences WHERE sequencename = '{seq_name}'
+                ) THEN
+                    CREATE SEQUENCE {seq_name} START 1 INCREMENT 1 NO CYCLE;
+                END IF;
+            END
+            $$;
+        """)
+        cur.execute(f"SELECT nextval('{seq_name}')")
+        seq_val = cur.fetchone()[0]
+    return generate_work_code(year, seq_val)
 
 
 def get_activity_report(
@@ -28,9 +50,16 @@ def get_activity_report(
     category_code: Optional[str] = None,
     pl_number: Optional[str] = None,
     status: Optional[str] = None,
-) -> list:
+    page: int = 1,
+    page_size: int = DEFAULT_PAGE_SIZE,
+) -> dict:
+    """FIX (#6): Returns paginated dict with {results, total_count, page, page_size}."""
+    page_size = min(max(int(page_size), 1), MAX_PAGE_SIZE)
+    page      = max(int(page), 1)
+    offset    = (page - 1) * page_size
+
     filters = []
-    params = []
+    params  = []
 
     if from_date:
         filters.append("wl.received_date >= %s")
@@ -59,7 +88,13 @@ def get_activity_report(
 
     where_clause = ("WHERE " + " AND ".join(filters)) if filters else ""
 
-    sql = f"""
+    count_sql = f"""
+        SELECT COUNT(*)
+        FROM work_ledger wl
+        JOIN work_category_master wcm ON wcm.code = wl.work_category_code
+        {where_clause}
+    """
+    data_sql = f"""
         SELECT
             wl.work_id,
             wl.work_code,
@@ -78,27 +113,55 @@ def get_activity_report(
         JOIN work_category_master wcm ON wcm.code = wl.work_category_code
         {where_clause}
         ORDER BY wl.received_date DESC, wl.work_id DESC
+        LIMIT %s OFFSET %s
     """
     with connection.cursor() as cur:
-        cur.execute(sql, params)
+        cur.execute(count_sql, params)
+        total_count = cur.fetchone()[0]
+
+        cur.execute(data_sql, params + [page_size, offset])
         columns = [col[0] for col in cur.description]
-        return [dict(zip(columns, row)) for row in cur.fetchall()]
+        results = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+    return {
+        'results':     results,
+        'total_count': total_count,
+        'page':        page,
+        'page_size':   page_size,
+        'total_pages': (total_count + page_size - 1) // page_size,
+    }
 
 
 def get_monthly_kpi(
     year: int,
     month: int,
     section: Optional[str] = None,
-) -> list:
-    filters = ["EXTRACT(YEAR FROM wl.received_date) = %s",
-               "EXTRACT(MONTH FROM wl.received_date) = %s"]
+    page: int = 1,
+    page_size: int = DEFAULT_PAGE_SIZE,
+) -> dict:
+    """FIX (#6): Paginated monthly KPI summary."""
+    page_size = min(max(int(page_size), 1), MAX_PAGE_SIZE)
+    page      = max(int(page), 1)
+    offset    = (page - 1) * page_size
+
+    filters = [
+        "EXTRACT(YEAR  FROM wl.received_date) = %s",
+        "EXTRACT(MONTH FROM wl.received_date) = %s",
+    ]
     params = [year, month]
     if section:
         filters.append("wl.section = %s")
         params.append(section)
 
     where_clause = "WHERE " + " AND ".join(filters)
-    sql = f"""
+
+    count_sql = f"""
+        SELECT COUNT(DISTINCT wl.work_category_code)
+        FROM work_ledger wl
+        JOIN work_category_master wcm ON wcm.code = wl.work_category_code
+        {where_clause}
+    """
+    data_sql = f"""
         SELECT
             wl.work_category_code,
             wcm.label   AS work_category_label,
@@ -108,14 +171,30 @@ def get_monthly_kpi(
         {where_clause}
         GROUP BY wl.work_category_code, wcm.label, wcm.sort_order
         ORDER BY wcm.sort_order
+        LIMIT %s OFFSET %s
     """
     with connection.cursor() as cur:
-        cur.execute(sql, params)
+        cur.execute(count_sql, params)
+        total_count = cur.fetchone()[0]
+
+        cur.execute(data_sql, params + [page_size, offset])
         columns = [col[0] for col in cur.description]
-        return [dict(zip(columns, row)) for row in cur.fetchall()]
+        results = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+    return {
+        'results':     results,
+        'total_count': total_count,
+        'page':        page,
+        'page_size':   page_size,
+        'total_pages': (total_count + page_size - 1) // page_size,
+    }
 
 
 def get_dashboard_monthly_summary(year: int, month: int) -> dict:
-    rows = get_monthly_kpi(year, month)
-    total = sum(r["work_count"] for r in rows)
-    return {"month": f"{year}-{month:02d}", "total": total, "by_category": rows}
+    kpi = get_monthly_kpi(year, month, page_size=MAX_PAGE_SIZE)
+    total = sum(r['work_count'] for r in kpi['results'])
+    return {
+        'month':       f'{year}-{month:02d}',
+        'total':       total,
+        'by_category': kpi['results'],
+    }

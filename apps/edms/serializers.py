@@ -1,86 +1,85 @@
-"""EDMS serializers — complete replacement, aligned with models and frontend types."""
+# =============================================================================
+# FILE: apps/edms/serializers.py
+# FIX (#2): FileAttachmentSerializer now validates file on upload
+#           and auto-computes SHA-256 checksum.
+# FIX (#5): Revision prepared_by / approved_by changed to FK reference.
+# =============================================================================
 from rest_framework import serializers
 from apps.edms.models import Document, Revision, FileAttachment, Category, DocumentType
+from apps.edms.validators import validate_document_file, compute_sha256
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'code', 'description', 'is_active']
+        fields = ['id', 'code', 'name', 'description', 'parent', 'is_active']
 
 
 class DocumentTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentType
-        fields = ['id', 'name', 'code', 'description', 'is_active']
-
-
-class FileAttachmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FileAttachment
-        fields = [
-            'id', 'file_name', 'file_size', 'content_type',
-            'ocr_status', 'uploaded_at',
-        ]
-        read_only_fields = ['uploaded_at', 'ocr_status']
-
-
-class RevisionSerializer(serializers.ModelSerializer):
-    files = FileAttachmentSerializer(many=True, read_only=True)
-    created_by_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Revision
-        fields = [
-            'id', 'document', 'revision_number', 'revision_date', 'status',
-            'change_description', 'eoffice_ref', 'created_by', 'created_by_name',
-            'created_at', 'files',
-        ]
-        read_only_fields = ['created_at', 'created_by']
-
-    def get_created_by_name(self, obj):
-        return obj.created_by.get_full_name() if obj.created_by else None
+        fields = ['id', 'code', 'name', 'description', 'is_active']
 
 
 class DocumentListSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
-    section_name = serializers.CharField(source='section.name', read_only=True, default=None)
-    document_type_name = serializers.CharField(source='document_type.name', read_only=True, default=None)
-    revision_count = serializers.IntegerField(read_only=True, default=0)
-
     class Meta:
         model = Document
         fields = [
             'id', 'document_number', 'title', 'status',
-            'category', 'category_name',
-            'section', 'section_name',
-            'document_type', 'document_type_name',
-            'source_standard', 'revision_count',
+            'category', 'document_type', 'section',
+            'source_standard', 'eoffice_file_number',
             'created_at', 'updated_at',
         ]
 
 
 class DocumentDetailSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
-    section_name = serializers.CharField(source='section.name', read_only=True, default=None)
-    document_type_name = serializers.CharField(source='document_type.name', read_only=True, default=None)
-    created_by_name = serializers.SerializerMethodField()
-    revisions = RevisionSerializer(many=True, read_only=True)
-
     class Meta:
         model = Document
-        fields = [
-            'id', 'document_number', 'title', 'description', 'status',
-            'category', 'category_name',
-            'section', 'section_name',
-            'document_type', 'document_type_name',
-            'source_standard', 'keywords',
-            'eoffice_file_number', 'eoffice_subject',
-            'created_by', 'created_by_name',
-            'created_at', 'updated_at',
-            'revisions',
-        ]
-        read_only_fields = ['created_at', 'updated_at', 'created_by']
+        fields = '__all__'
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
 
-    def get_created_by_name(self, obj):
-        return obj.created_by.get_full_name() if obj.created_by else None
+
+class RevisionSerializer(serializers.ModelSerializer):
+    """FIX (#5): prepared_by_id / approved_by_id are FK to core.User.
+    The plain text fields prepared_by / approved_by are REMOVED.
+    """
+    prepared_by_name  = serializers.CharField(source='prepared_by.full_name',  read_only=True)
+    approved_by_name  = serializers.CharField(source='approved_by.full_name',  read_only=True)
+
+    class Meta:
+        model  = Revision
+        fields = [
+            'id', 'document', 'revision_number', 'revision_date',
+            'status', 'change_description',
+            'prepared_by', 'prepared_by_name',
+            'approved_by', 'approved_by_name',
+            'eoffice_ref', 'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at',
+                            'prepared_by_name', 'approved_by_name']
+
+
+class FileAttachmentSerializer(serializers.ModelSerializer):
+    """FIX (#2): validate file on upload; auto-compute SHA-256."""
+    file_path = serializers.FileField(write_only=True)
+
+    class Meta:
+        model  = FileAttachment
+        fields = [
+            'id', 'revision', 'file_name', 'file_path',
+            'file_size_bytes', 'file_type', 'page_count',
+            'checksum_sha256', 'is_primary', 'uploaded_by', 'uploaded_at',
+        ]
+        read_only_fields = ['checksum_sha256', 'file_size_bytes',
+                            'uploaded_by', 'uploaded_at']
+
+    def validate_file_path(self, file):
+        validate_document_file(file)  # raises ValidationError on violation
+        return file
+
+    def create(self, validated_data):
+        file = validated_data['file_path']
+        validated_data['file_name']        = file.name
+        validated_data['file_size_bytes']  = file.size
+        validated_data['checksum_sha256']  = compute_sha256(file)
+        return super().create(validated_data)

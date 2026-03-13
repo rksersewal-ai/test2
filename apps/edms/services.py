@@ -1,8 +1,9 @@
-"""EDMS business-logic / service layer.
-
-Keeps views thin and orchestrates cross-cutting actions
-(audit logging, status transitions, revision numbering).
-"""
+# =============================================================================
+# FILE: apps/edms/services.py
+# FIX (#13): next_revision_number wrapped in SELECT FOR UPDATE on document row
+#            to prevent duplicate revision numbers under concurrent requests.
+# =============================================================================
+"""EDMS business-logic / service layer."""
 from django.db import transaction
 from apps.edms.models import Document, Revision, FileAttachment
 from apps.audit.services import AuditService
@@ -43,7 +44,12 @@ class DocumentService:
 
     @staticmethod
     def next_revision_number(document: Document) -> str:
-        """Return the next revision label (00, 01, 02 …)."""
+        """FIX (#13): Lock document row with SELECT FOR UPDATE before counting
+        revisions. Prevents two concurrent requests generating the same number.
+        Must be called inside an atomic block.
+        """
+        # Lock document row to prevent concurrent revision creation
+        Document.objects.select_for_update().get(pk=document.pk)
         count = document.revisions.count()
         return str(count).zfill(2)
 
@@ -57,6 +63,8 @@ class RevisionService:
             document=document, status=Revision.Status.CURRENT
         ).update(status=Revision.Status.SUPERSEDED)
 
+        # FIX (#13): next_revision_number is now called inside atomic block
+        # with SELECT FOR UPDATE on document row
         if 'revision_number' not in data or not data['revision_number']:
             data['revision_number'] = DocumentService.next_revision_number(document)
 
