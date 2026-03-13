@@ -1,0 +1,77 @@
+.contextMenu {
+  position: fixed;
+  z-index: 9999;
+  background: #1e2332;
+  border: 1px solid #2d3555;
+  border-radius: 8px;
+  min-width: 190px;
+  max-width: 240px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+  padding: 6px 0;
+  animation: fadeIn 0.12s ease;
+  user-select: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.menuTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 14px 4px;
+  border-bottom: 1px solid #2d3555;
+  margin-bottom: 4px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  color: #d1d5db;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+  border-radius: 0;
+}
+
+.menuItem:hover:not(.disabled) {
+  background: #2d3555;
+  color: #fff;
+}
+
+.menuItem.danger {
+  color: #f87171;
+}
+
+.menuItem.danger:hover:not(.disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.menuItem.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.divider {
+  height: 1px;
+  background: #2d3555;
+  margin: 5px 0;
+}
