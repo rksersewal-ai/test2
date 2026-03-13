@@ -1,5 +1,5 @@
 """Core API views - users, sections."""
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from apps.core.models import User, Section
