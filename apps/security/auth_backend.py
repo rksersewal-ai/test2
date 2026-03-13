@@ -14,7 +14,6 @@ Configure via environment / .env:
     LDAP_USER_SEARCH_BASE = OU=Employees,DC=plw,DC=local
     LDAP_REQUIRE_GROUP    = CN=EDMS_Users,OU=Groups,DC=plw,DC=local
 """
-import os
 import logging
 
 logger = logging.getLogger(__name__)
