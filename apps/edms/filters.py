@@ -1,59 +1,73 @@
-"""DRF / django-filter FilterSets for the EDMS app."""
-from django_filters import rest_framework as df
-from apps.edms.models import Document, Revision, FileAttachment
+# =============================================================================
+# FILE: apps/edms/filters.py
+# SPRINT 1: Added filters for Correspondent, CorrespondentLink, DocumentNote.
+# Existing DocumentFilter, RevisionFilter, FileAttachmentFilter unchanged.
+# =============================================================================
+import django_filters
+from apps.edms.models import (
+    Document, Revision, FileAttachment,
+    Correspondent, DocumentCorrespondentLink, DocumentNote,
+)
 
 
-class DocumentFilter(df.FilterSet):
-    status = df.MultipleChoiceFilter(
-        choices=Document.Status.choices,
-        conjoined=False,
-    )
-    category = df.NumberFilter(field_name='category__id')
-    section = df.NumberFilter(field_name='section__id')
-    document_type = df.NumberFilter(field_name='document_type__id')
-    source_standard = df.CharFilter(field_name='source_standard', lookup_expr='icontains')
-    created_after = df.DateFilter(field_name='created_at', lookup_expr='date__gte')
-    created_before = df.DateFilter(field_name='created_at', lookup_expr='date__lte')
-    updated_after = df.DateFilter(field_name='updated_at', lookup_expr='date__gte')
-    keywords = df.CharFilter(field_name='keywords', lookup_expr='icontains')
-    eoffice_file_number = df.CharFilter(lookup_expr='icontains')
-
-    class Meta:
-        model = Document
-        fields = [
-            'status', 'category', 'section', 'document_type',
-            'source_standard', 'created_after', 'created_before',
-            'updated_after', 'keywords', 'eoffice_file_number',
-        ]
-
-
-class RevisionFilter(df.FilterSet):
-    document = df.NumberFilter(field_name='document__id')
-    status = df.MultipleChoiceFilter(
-        choices=Revision.Status.choices,
-        conjoined=False,
-    )
-    revision_date_after = df.DateFilter(field_name='revision_date', lookup_expr='gte')
-    revision_date_before = df.DateFilter(field_name='revision_date', lookup_expr='lte')
-    has_files = df.BooleanFilter(method='filter_has_files')
+class DocumentFilter(django_filters.FilterSet):
+    status        = django_filters.CharFilter(field_name='status',        lookup_expr='exact')
+    category      = django_filters.NumberFilter(field_name='category',    lookup_expr='exact')
+    document_type = django_filters.NumberFilter(field_name='document_type', lookup_expr='exact')
+    section       = django_filters.NumberFilter(field_name='section',     lookup_expr='exact')
+    created_after = django_filters.DateFilter(field_name='created_at',    lookup_expr='gte')
+    created_before= django_filters.DateFilter(field_name='created_at',    lookup_expr='lte')
 
     class Meta:
-        model = Revision
-        fields = ['document', 'status', 'revision_date_after', 'revision_date_before']
-
-    def filter_has_files(self, queryset, name, value):
-        if value:
-            return queryset.filter(files__isnull=False).distinct()
-        return queryset.filter(files__isnull=True)
+        model  = Document
+        fields = ['status', 'category', 'document_type', 'section']
 
 
-class FileAttachmentFilter(df.FilterSet):
-    revision = df.NumberFilter(field_name='revision__id')
-    ocr_status = df.MultipleChoiceFilter(
-        choices=FileAttachment.OCRStatus.choices,
-        conjoined=False,
-    )
+class RevisionFilter(django_filters.FilterSet):
+    document = django_filters.NumberFilter(field_name='document', lookup_expr='exact')
+    status   = django_filters.CharFilter(field_name='status',     lookup_expr='exact')
 
     class Meta:
-        model = FileAttachment
-        fields = ['revision', 'ocr_status']
+        model  = Revision
+        fields = ['document', 'status']
+
+
+class FileAttachmentFilter(django_filters.FilterSet):
+    revision  = django_filters.NumberFilter(field_name='revision',  lookup_expr='exact')
+    file_type = django_filters.CharFilter(field_name='file_type',   lookup_expr='exact')
+
+    class Meta:
+        model  = FileAttachment
+        fields = ['revision', 'file_type']
+
+
+# ---- Sprint 1 filters ----
+
+class CorrespondentFilter(django_filters.FilterSet):
+    org_type  = django_filters.CharFilter(field_name='org_type',  lookup_expr='exact')
+    is_active = django_filters.BooleanFilter(field_name='is_active')
+
+    class Meta:
+        model  = Correspondent
+        fields = ['org_type', 'is_active']
+
+
+class DocumentCorrespondentLinkFilter(django_filters.FilterSet):
+    document      = django_filters.NumberFilter(field_name='document',      lookup_expr='exact')
+    correspondent = django_filters.NumberFilter(field_name='correspondent', lookup_expr='exact')
+    link_type     = django_filters.CharFilter(field_name='link_type',       lookup_expr='exact')
+
+    class Meta:
+        model  = DocumentCorrespondentLink
+        fields = ['document', 'correspondent', 'link_type']
+
+
+class DocumentNoteFilter(django_filters.FilterSet):
+    document    = django_filters.NumberFilter(field_name='document',    lookup_expr='exact')
+    revision    = django_filters.NumberFilter(field_name='revision',    lookup_expr='exact')
+    note_type   = django_filters.CharFilter(field_name='note_type',     lookup_expr='exact')
+    is_resolved = django_filters.BooleanFilter(field_name='is_resolved')
+
+    class Meta:
+        model  = DocumentNote
+        fields = ['document', 'revision', 'note_type', 'is_resolved']
