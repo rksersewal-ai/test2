@@ -3,10 +3,11 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
-build/
-dist/
+*.so
+*.egg
 *.egg-info/
+dist/
+build/
 .eggs/
 
 # Django
@@ -18,9 +19,22 @@ staticfiles/
 
 # Environment
 .env
-.venv/
+.env.*
+!.env.example
+*.env
+
+# Virtual environments
 venv/
+.venv/
 env/
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+*.tsbuildinfo
 
 # IDE
 .vscode/
@@ -33,10 +47,21 @@ env/
 Thumbs.db
 desktop.ini
 
-# OCR inbox (local only)
-ocr_inbox/
-ocr_processed/
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
 
-# Logs
-logs/
-*.log
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# IIS
+web.config.bak
+*.bak
+
+# SQL dumps
+*.sql.bak
+*.dump

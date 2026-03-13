@@ -1,6 +1,7 @@
 # =============================================================================
 # FILE: apps/workledger/dropdown_views.py
-# PURPOSE: Admin CRUD views for dropdown management + public read endpoints
+# FIX:  Replaced inline require_admin() string check with CanManageDropdowns
+#       permission class that uses unified core.User.Role.
 # =============================================================================
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -22,17 +23,11 @@ from .dropdown_services import (
     get_dropdown_group,
     get_all_groups,
 )
-from .permissions import get_user_role, ROLE_ADMIN
-
-
-def require_admin(request):
-    return get_user_role(request) == ROLE_ADMIN
+from .permissions import CanManageDropdowns
 
 
 # ---------------------------------------------------------------------------
 # PUBLIC: GET /api/dropdowns/{group_key}/
-# Returns sorted active items for a single dropdown group.
-# Used by all form components to populate <select> elements.
 # ---------------------------------------------------------------------------
 class DropdownGroupView(APIView):
     permission_classes = [IsAuthenticated]
@@ -44,7 +39,6 @@ class DropdownGroupView(APIView):
 
 # ---------------------------------------------------------------------------
 # PUBLIC: GET /api/dropdowns/
-# Returns all groups with their active items (for preloading in frontend).
 # ---------------------------------------------------------------------------
 class DropdownAllGroupsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -63,15 +57,11 @@ class DropdownAllGroupsView(APIView):
 
 # ---------------------------------------------------------------------------
 # ADMIN: GET + POST /api/admin/dropdowns/{group_key}/
-# GET  - list all items (including inactive) for admin management view.
-# POST - add a new item to the group.
 # ---------------------------------------------------------------------------
 class AdminDropdownGroupView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDropdowns]
 
     def get(self, request, group_key: str):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
         items = DropdownMaster.objects.filter(group_key=group_key).order_by('label')
         data = []
         for item in items:
@@ -82,24 +72,21 @@ class AdminDropdownGroupView(APIView):
         return Response(data)
 
     def post(self, request, group_key: str):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
         payload = {**request.data, 'group_key': group_key}
         serializer = DropdownCreateSerializer(data=payload)
         if serializer.is_valid():
-            item = create_dropdown_item(serializer.validated_data, created_by=request.user.id)
+            item = create_dropdown_item(
+                serializer.validated_data, created_by=request.user.id
+            )
             return Response(DropdownItemSerializer(item).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=400)
 
 
 # ---------------------------------------------------------------------------
 # ADMIN: GET + PATCH + DELETE /api/admin/dropdowns/{group_key}/{item_id}/
-# GET    - single item detail.
-# PATCH  - update label / sort_override / is_active.
-# DELETE - hard delete (system items blocked), or pass ?deactivate=1 to soft-delete.
 # ---------------------------------------------------------------------------
 class AdminDropdownItemView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDropdowns]
 
     def _get_item(self, group_key: str, item_id: int):
         try:
@@ -108,8 +95,6 @@ class AdminDropdownItemView(APIView):
             return None
 
     def get(self, request, group_key: str, item_id: int):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
         item = self._get_item(group_key, item_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=404)
@@ -119,12 +104,12 @@ class AdminDropdownItemView(APIView):
         return Response(data)
 
     def patch(self, request, group_key: str, item_id: int):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
         item = self._get_item(group_key, item_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=404)
-        serializer = DropdownUpdateSerializer(instance=item, data=request.data, partial=True)
+        serializer = DropdownUpdateSerializer(
+            instance=item, data=request.data, partial=True
+        )
         if serializer.is_valid():
             try:
                 updated = update_dropdown_item(
@@ -136,13 +121,9 @@ class AdminDropdownItemView(APIView):
         return Response(serializer.errors, status=400)
 
     def delete(self, request, group_key: str, item_id: int):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
         item = self._get_item(group_key, item_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=404)
-        # ?deactivate=1  -> soft delete (keep in DB, hide from dropdowns)
-        # no param       -> hard delete
         deactivate = request.query_params.get('deactivate', '0') == '1'
         try:
             if deactivate:
@@ -157,13 +138,12 @@ class AdminDropdownItemView(APIView):
 
 # ---------------------------------------------------------------------------
 # ADMIN: GET /api/admin/dropdowns/{group_key}/audit-log/
-# Audit trail of all admin changes to a dropdown group.
 # ---------------------------------------------------------------------------
 class AdminDropdownAuditLogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageDropdowns]
 
     def get(self, request, group_key: str):
-        if not require_admin(request):
-            return Response({'detail': 'Admin only.'}, status=403)
-        logs = DropdownAuditLog.objects.filter(group_key=group_key).order_by('-changed_at')[:200]
+        logs = DropdownAuditLog.objects.filter(
+            group_key=group_key
+        ).order_by('-changed_at')[:200]
         return Response(DropdownAuditLogSerializer(logs, many=True).data)

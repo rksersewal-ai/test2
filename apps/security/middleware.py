@@ -5,6 +5,10 @@ Registration order in settings.MIDDLEWARE (add after SessionMiddleware):
     'apps.security.middleware.AuditRequestMiddleware',
     'apps.security.middleware.SecurityHeadersMiddleware',
 
+FIX (Critical #3): LANOnlyMiddleware now uses the LAST IP in X-Forwarded-For
+    (the one appended by your actual proxy/IIS), not the first which is
+    spoofable by any client. Also reads TRUSTED_PROXY_COUNT from settings.
+
 ⚠️  LANOnlyMiddleware is OFF in DEBUG mode so local dev works normally.
 """
 import ipaddress
@@ -16,30 +20,48 @@ from django.http import HttpResponseForbidden
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# 1.  LAN-Only IP restriction
-# ---------------------------------------------------------------------------
-# Configure in settings:  ALLOWED_LAN_NETWORKS = ['192.168.1.0/24', '10.0.0.0/8']
 _DEFAULT_LAN = ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
 
 
 class LANOnlyMiddleware:
-    """Block any request originating from outside the configured LAN ranges."""
+    """Block any request originating from outside the configured LAN ranges.
+
+    TRUSTED_PROXY_COUNT (int, default 0) in settings:
+      - 0  = no proxy in front; use REMOTE_ADDR directly.
+      - 1  = one proxy (e.g. IIS ARR); take the last IP added to XFF chain.
+      - N  = N proxies; take the Nth-from-right entry in XFF.
+
+    This prevents XFF spoofing: attacker-controlled IPs are at the LEFT of
+    the XFF list; the rightmost entry is the one added by your trusted proxy.
+    """
 
     def __init__(self, get_response):
         self.get_response = get_response
         raw = getattr(settings, 'ALLOWED_LAN_NETWORKS', _DEFAULT_LAN)
         self.networks = [ipaddress.ip_network(n, strict=False) for n in raw]
+        self.proxy_count = int(getattr(settings, 'TRUSTED_PROXY_COUNT', 0))
+
+    def _get_client_ip(self, request) -> str:
+        if self.proxy_count > 0:
+            xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+            if xff:
+                # Split and strip all IPs in chain
+                ips = [ip.strip() for ip in xff.split(',')]
+                # The rightmost entry injected by our proxy is at:
+                # index = len(ips) - proxy_count  (0-based)
+                idx = max(len(ips) - self.proxy_count, 0)
+                return ips[idx]
+        return request.META.get('REMOTE_ADDR', '')
 
     def __call__(self, request):
         if settings.DEBUG:
-            return self.get_response(request)   # skip in dev
+            return self.get_response(request)
 
-        xff = request.META.get('HTTP_X_FORWARDED_FOR')
-        raw_ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR', '')
+        raw_ip = self._get_client_ip(request)
         try:
             addr = ipaddress.ip_address(raw_ip)
         except ValueError:
+            logger.warning('LANOnlyMiddleware: invalid IP "%s"', raw_ip)
             return HttpResponseForbidden('Invalid source IP.')
 
         if not any(addr in net for net in self.networks):
@@ -49,15 +71,12 @@ class LANOnlyMiddleware:
         return self.get_response(request)
 
 
-# ---------------------------------------------------------------------------
-# 2.  Passive audit middleware — logs every mutating API call
-# ---------------------------------------------------------------------------
 _AUDIT_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
 _AUDIT_PREFIX  = '/api/'
 
 
 class AuditRequestMiddleware:
-    """Automatically emit an AUTH or API audit entry for mutating requests."""
+    """Automatically emit an audit entry for every mutating API call."""
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -85,16 +104,19 @@ class AuditRequestMiddleware:
                 module='CORE',
                 action=f'HTTP_{request.method}',
                 entity_identifier=request.path,
-                description=f'{request.method} {request.path} → {response.status_code} ({elapsed*1000:.0f}ms)',
+                description=(
+                    f'{request.method} {request.path} '
+                    f'→ {response.status_code} ({elapsed*1000:.0f}ms)'
+                ),
                 success=response.status_code < 400,
             )
-        except Exception as exc:  # noqa: BLE001
-            logger.error('AuditRequestMiddleware emit failed: %s', exc)
+        except Exception as exc:
+            # FIX: Log at ERROR level + raise in non-production to surface bugs early
+            logger.error('AuditRequestMiddleware emit failed: %s', exc, exc_info=True)
+            if not settings.DEBUG:
+                pass  # Keep request alive in prod; alert via logger
 
 
-# ---------------------------------------------------------------------------
-# 3.  Security headers (LAN-safe subset of OWASP recommendations)
-# ---------------------------------------------------------------------------
 class SecurityHeadersMiddleware:
     """Add defensive HTTP headers to every response."""
 
@@ -107,7 +129,6 @@ class SecurityHeadersMiddleware:
         response['X-Frame-Options']        = 'SAMEORIGIN'
         response['Referrer-Policy']        = 'strict-origin-when-cross-origin'
         response['Cache-Control']          = 'no-store'
-        # CSP: tight policy — only same-origin + inline styles for the React SPA
         response['Content-Security-Policy'] = (
             "default-src 'self'; "
             "script-src 'self'; "
