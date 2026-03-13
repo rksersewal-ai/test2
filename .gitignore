@@ -9,6 +9,9 @@ __pycache__/
 dist/
 build/
 .eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 
 # Django
 *.log
@@ -21,20 +24,19 @@ staticfiles/
 .env
 .env.*
 !.env.example
-*.env
 
 # Virtual environments
 venv/
 .venv/
 env/
 
-# Node / React
+# Node / React frontend
 frontend/node_modules/
 frontend/dist/
 frontend/build/
 frontend/.env
-frontend/.env.local
-*.tsbuildinfo
+frontend/.env.*
+!frontend/.env.example
 
 # IDE
 .vscode/
@@ -45,23 +47,8 @@ frontend/.env.local
 # OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Test artifacts
-.pytest_cache/
+# Coverage
 htmlcov/
 .coverage
 coverage.xml
-*.cover
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# IIS
-web.config.bak
-*.bak
-
-# SQL dumps
-*.sql.bak
-*.dump

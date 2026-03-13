@@ -1,14 +1,12 @@
 # =============================================================================
 # FILE: apps/edms/validators.py
-# FIX (#2): File upload validation - MIME type whitelist + max size check
-#           + magic bytes verification (prevents MIME spoofing)
+# FIX (#2): File upload validation — size limit, MIME whitelist, magic bytes.
 # =============================================================================
-import os
 import hashlib
 from django.conf import settings
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError
 
-# Allowed MIME types for uploaded documents
+# Allowed MIME types (Content-Type header)
 ALLOWED_MIME_TYPES = {
     'application/pdf',
     'image/jpeg',
@@ -17,72 +15,58 @@ ALLOWED_MIME_TYPES = {
     'image/bmp',
 }
 
-# Magic byte signatures for allowed file types
-MAGIC_BYTES: dict[str, bytes] = {
-    'pdf':  b'%PDF',
-    'jpeg': b'\xff\xd8\xff',
-    'png':  b'\x89PNG',
-    'tiff_le': b'II*\x00',
-    'tiff_be': b'MM\x00*',
-    'bmp':  b'BM',
+# Magic byte signatures: {mime_type: list_of_valid_prefixes}
+MAGIC_BYTES: dict[str, list[bytes]] = {
+    'application/pdf': [b'%PDF'],
+    'image/jpeg':      [b'\xff\xd8\xff'],
+    'image/png':       [b'\x89PNG'],
+    'image/tiff':      [b'II*\x00', b'MM\x00*'],
+    'image/bmp':       [b'BM'],
 }
 
-# Default max upload: 50 MB. Override in settings: MAX_UPLOAD_MB = 100
-DEFAULT_MAX_MB = 50
+# Default max upload size in MB (override in settings.py)
+MAX_UPLOAD_MB: int = getattr(settings, 'MAX_UPLOAD_MB', 50)
 
 
-def _max_bytes() -> int:
-    return int(getattr(settings, 'MAX_UPLOAD_MB', DEFAULT_MAX_MB)) * 1024 * 1024
-
-
-def validate_document_file(file) -> None:
-    """Validate uploaded file: MIME type, magic bytes, and size.
-    Raises ValidationError on any violation.
+def validate_file_upload(file_obj) -> str:
+    """Validate an uploaded InMemoryUploadedFile or TemporaryUploadedFile.
+    Returns the hex SHA-256 checksum of the file content.
+    Raises ValidationError on any failure.
     """
     # 1. Size check
-    max_bytes = _max_bytes()
-    if file.size > max_bytes:
+    max_bytes = MAX_UPLOAD_MB * 1024 * 1024
+    if file_obj.size > max_bytes:
         raise ValidationError(
-            f'File too large. Maximum allowed size is '
-            f'{getattr(settings, "MAX_UPLOAD_MB", DEFAULT_MAX_MB)} MB. '
-            f'Uploaded file is {file.size / (1024*1024):.1f} MB.'
+            f'File too large. Maximum allowed size is {MAX_UPLOAD_MB} MB '
+            f'(uploaded: {file_obj.size / 1024 / 1024:.1f} MB).'
         )
 
-    # 2. MIME type check (content_type header)
-    content_type = getattr(file, 'content_type', '').lower()
-    if content_type and content_type not in ALLOWED_MIME_TYPES:
+    # 2. MIME type check (Content-Type header — first line of defence)
+    content_type = getattr(file_obj, 'content_type', '').split(';')[0].strip().lower()
+    if content_type not in ALLOWED_MIME_TYPES:
         raise ValidationError(
             f'File type "{content_type}" is not allowed. '
-            f'Allowed types: PDF, JPEG, PNG, TIFF, BMP.'
+            f'Allowed types: {sorted(ALLOWED_MIME_TYPES)}.'
         )
 
-    # 3. Magic bytes check (prevents MIME spoofing)
-    file.seek(0)
-    header = file.read(8)
-    file.seek(0)
-    magic_ok = any(header.startswith(sig) for sig in MAGIC_BYTES.values())
-    if not magic_ok:
-        raise ValidationError(
-            'File content does not match an allowed document type. '
-            'Upload only genuine PDF, JPEG, PNG, or TIFF files.'
-        )
+    # 3. Magic bytes check (actual file content — cannot be spoofed by Content-Type)
+    file_obj.seek(0)
+    header = file_obj.read(8)
+    file_obj.seek(0)
 
-    # 4. Filename extension check
-    name = getattr(file, 'name', '')
-    ext = os.path.splitext(name)[1].lower()
-    allowed_exts = {'.pdf', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp'}
-    if ext and ext not in allowed_exts:
-        raise ValidationError(
-            f'File extension "{ext}" is not allowed. '
-            f'Allowed extensions: {sorted(allowed_exts)}.'
-        )
+    valid_signatures = MAGIC_BYTES.get(content_type, [])
+    if valid_signatures:
+        if not any(header.startswith(sig) for sig in valid_signatures):
+            raise ValidationError(
+                f'File content does not match declared type "{content_type}". '
+                f'The file may be corrupted or misnamed.'
+            )
 
+    # 4. Compute SHA-256 checksum for deduplication and integrity
+    sha256 = hashlib.sha256()
+    file_obj.seek(0)
+    for chunk in file_obj.chunks():
+        sha256.update(chunk)
+    file_obj.seek(0)
 
-def compute_sha256(file) -> str:
-    """Compute SHA-256 checksum of an uploaded file. Rewinds file after reading."""
-    sha = hashlib.sha256()
-    file.seek(0)
-    for chunk in iter(lambda: file.read(8192), b''):
-        sha.update(chunk)
-    file.seek(0)
-    return sha.hexdigest()
+    return sha256.hexdigest()

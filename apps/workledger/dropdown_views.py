@@ -1,7 +1,7 @@
 # =============================================================================
 # FILE: apps/workledger/dropdown_views.py
-# FIX:  Replaced inline require_admin() string check with CanManageDropdowns
-#       permission class that uses unified core.User.Role.
+# FIX (#1): Admin check now uses core.permissions.CanManageDropdowns (unified RBAC).
+# FIX (#4): Admin identity comes from request.user.id (Django User), not JWT payload.
 # =============================================================================
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -23,7 +23,7 @@ from .dropdown_services import (
     get_dropdown_group,
     get_all_groups,
 )
-from .permissions import CanManageDropdowns
+from apps.core.permissions import CanManageDropdowns
 
 
 # ---------------------------------------------------------------------------
@@ -46,10 +46,7 @@ class DropdownAllGroupsView(APIView):
     def get(self, request):
         groups = get_all_groups()
         result = [
-            {
-                'group_key': gk,
-                'items': DropdownItemSerializer(items, many=True).data,
-            }
+            {'group_key': gk, 'items': DropdownItemSerializer(items, many=True).data}
             for gk, items in groups.items()
         ]
         return Response(result)
@@ -75,9 +72,8 @@ class AdminDropdownGroupView(APIView):
         payload = {**request.data, 'group_key': group_key}
         serializer = DropdownCreateSerializer(data=payload)
         if serializer.is_valid():
-            item = create_dropdown_item(
-                serializer.validated_data, created_by=request.user.id
-            )
+            # FIX (#4): use request.user.id — not JWT payload
+            item = create_dropdown_item(serializer.validated_data, created_by=request.user.id)
             return Response(DropdownItemSerializer(item).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=400)
 
@@ -107,9 +103,7 @@ class AdminDropdownItemView(APIView):
         item = self._get_item(group_key, item_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=404)
-        serializer = DropdownUpdateSerializer(
-            instance=item, data=request.data, partial=True
-        )
+        serializer = DropdownUpdateSerializer(instance=item, data=request.data, partial=True)
         if serializer.is_valid():
             try:
                 updated = update_dropdown_item(
@@ -143,7 +137,5 @@ class AdminDropdownAuditLogView(APIView):
     permission_classes = [IsAuthenticated, CanManageDropdowns]
 
     def get(self, request, group_key: str):
-        logs = DropdownAuditLog.objects.filter(
-            group_key=group_key
-        ).order_by('-changed_at')[:200]
+        logs = DropdownAuditLog.objects.filter(group_key=group_key).order_by('-changed_at')[:200]
         return Response(DropdownAuditLogSerializer(logs, many=True).data)

@@ -1,9 +1,9 @@
 # =============================================================================
 # FILE: apps/edms/services.py
-# FIX (#13): next_revision_number wrapped in SELECT FOR UPDATE on document row
-#            to prevent duplicate revision numbers under concurrent requests.
+# FIX (#13): next_revision_number() now uses SELECT FOR UPDATE on the Document
+#            row to prevent a race condition where two concurrent requests both
+#            read the same count and generate the same revision number.
 # =============================================================================
-"""EDMS business-logic / service layer."""
 from django.db import transaction
 from apps.edms.models import Document, Revision, FileAttachment
 from apps.audit.services import AuditService
@@ -44,11 +44,11 @@ class DocumentService:
 
     @staticmethod
     def next_revision_number(document: Document) -> str:
-        """FIX (#13): Lock document row with SELECT FOR UPDATE before counting
-        revisions. Prevents two concurrent requests generating the same number.
-        Must be called inside an atomic block.
+        """FIX (#13): Lock the document row with SELECT FOR UPDATE before
+        counting revisions to prevent concurrent revision number collision.
+        Must be called inside an atomic transaction.
         """
-        # Lock document row to prevent concurrent revision creation
+        # Lock this document row for the duration of the transaction
         Document.objects.select_for_update().get(pk=document.pk)
         count = document.revisions.count()
         return str(count).zfill(2)
@@ -58,13 +58,11 @@ class RevisionService:
     @staticmethod
     @transaction.atomic
     def create_revision(document: Document, data: dict, created_by) -> Revision:
-        # Mark previous current revision as SUPERSEDED
+        # FIX (#13): Lock acquired inside next_revision_number
         Revision.objects.filter(
             document=document, status=Revision.Status.CURRENT
         ).update(status=Revision.Status.SUPERSEDED)
 
-        # FIX (#13): next_revision_number is now called inside atomic block
-        # with SELECT FOR UPDATE on document row
         if 'revision_number' not in data or not data['revision_number']:
             data['revision_number'] = DocumentService.next_revision_number(document)
 
