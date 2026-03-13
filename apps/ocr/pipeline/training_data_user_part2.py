@@ -1,6 +1,6 @@
 # =============================================================================
 # EDMS OCR AGENT - USER'S CUSTOM TRAINING DATA (PART 2)
-# Consolidated from 100,000+ parameters in users new markdown datasets
+# Consolidated from 100,000+ parameters in user's markdown datasets
 # Source: D:\LDO_ERP\Jan 2026\EDMS 2.0\EDMS OCR agent\OCR training dataset\
 # Includes: ICF Coaches, DEMU/MEMU, IRIS Standards, ABB/ToT, BIS/DIN Norms
 # =============================================================================

@@ -37,30 +37,35 @@ BOM_ROW_PATTERN = re.compile(r"^\s*(\d+)\s+([A-Z0-9\-]+)\s+(.+?)\s+(\d+)\s*(.*)$
 # -----------------------------------------------------------------------------
 GDT_SYMBOLS = {
     "FORM_TOLERANCES": {
-        "Straightness": {"symbol": "--", "keywords": ["straightness", "strgt"]},
-        "Flatness": {"symbol": "flat", "keywords": ["flatness", "flat"]},
-        "Circularity": {"symbol": "O", "keywords": ["circularity", "roundness"]},
-        "Cylindricity": {"symbol": "cyl", "keywords": ["cylindricity"]},
+        "Straightness": {"symbol": "\u2014", "keywords": ["straightness", "strgt"]},
+        "Flatness": {"symbol": "\u23e5", "keywords": ["flatness", "flat"]},
+        "Circularity": {"symbol": "\u25cb", "keywords": ["circularity", "roundness"]},
+        "Cylindricity": {"symbol": "\u232d", "keywords": ["cylindricity"]},
+    },
+    "PROFILE_TOLERANCES": {
+        "Profile of a Line": {"symbol": "\u2312", "keywords": ["profile of line"]},
+        "Profile of a Surface": {"symbol": "\u2313", "keywords": ["profile of surface"]},
     },
     "ORIENTATION_TOLERANCES": {
-        "Angularity": {"symbol": "ang", "keywords": ["angularity", "angle"]},
-        "Perpendicularity": {"symbol": "perp", "keywords": ["perpendicularity", "perp", "squareness"]},
-        "Parallelism": {"symbol": "parl", "keywords": ["parallelism", "parl"]},
+        "Angularity": {"symbol": "\u2220", "keywords": ["angularity", "angle"]},
+        "Perpendicularity": {"symbol": "\u22a5", "keywords": ["perpendicularity", "perp", "squareness"]},
+        "Parallelism": {"symbol": "\u2225", "keywords": ["parallelism", "parl"]},
     },
     "LOCATION_TOLERANCES": {
-        "Position": {"symbol": "pos", "keywords": ["position", "pos", "TP"]},
-        "Concentricity": {"symbol": "conc", "keywords": ["concentricity", "conc"]},
-        "Symmetry": {"symbol": "sym", "keywords": ["symmetry"]},
+        "Position": {"symbol": "\u2316", "keywords": ["position", "pos", "TP"]},
+        "Concentricity": {"symbol": "\u25ce", "keywords": ["concentricity", "conc"]},
+        "Symmetry": {"symbol": "\u232f", "keywords": ["symmetry"]},
     },
     "RUNOUT_TOLERANCES": {
-        "Circular Runout": {"symbol": "runout", "keywords": ["circular runout", "runout"]},
-        "Total Runout": {"symbol": "total runout", "keywords": ["total runout"]},
+        "Circular Runout": {"symbol": "\u2197", "keywords": ["circular runout", "runout"]},
+        "Total Runout": {"symbol": "\u2330", "keywords": ["total runout"]},
     },
     "MODIFIERS": {
-        "Maximum Material Condition": {"symbol": "MMC", "code": "MMC"},
-        "Least Material Condition": {"symbol": "LMC", "code": "LMC"},
-        "Projected Tolerance Zone": {"symbol": "P", "code": "P"},
-        "Free State": {"symbol": "F", "code": "F"},
+        "Maximum Material Condition": {"symbol": "\u24c2", "code": "MMC"},
+        "Least Material Condition": {"symbol": "\u24c1", "code": "LMC"},
+        "Projected Tolerance Zone": {"symbol": "\u24bf", "code": "P"},
+        "Free State": {"symbol": "\u24bb", "code": "F"},
+        "Tangent Plane": {"symbol": "\u24c9", "code": "T"},
     },
 }
 
@@ -68,12 +73,30 @@ GDT_SYMBOLS = {
 # 4. ADVANCED TECHNOLOGY & RAILWAY MODERNIZATION (2026)
 # -----------------------------------------------------------------------------
 ADVANCED_TECH_TERMS = {
-    "Digital_Twin": ["Digital Twin", "Virtual Model", "Predictive Simulation", "Asset Mirroring", "Real-time Telemetry"],
-    "IoT_Sensors": ["IoT", "Internet of Things", "Wireless Sensor Node", "Vibration Monitoring", "Thermal Sensing", "Remote Diagnostics"],
-    "Predictive_Maintenance": ["CBM", "Condition Based Maintenance", "Predictive Analytics", "RCM", "Reliability Centered Maintenance", "Prognostics"],
-    "Green_Energy": ["Hydrogen Fuel Cell", "H2", "Green Hydrogen", "PEM Fuel Cell", "Battery Electric", "BESS", "Regenerative Braking"],
-    "Advanced_Materials": ["Composite", "Carbon Fiber", "Graphene", "Nano-coating", "Self-healing material", "Austenitic Stainless Steel"],
-    "Signaling_Control": ["ETCS", "European Train Control System", "TCAS", "Kavach", "CBTC", "Communications Based Train Control", "Automatic Train Protection"],
+    "Digital_Twin": [
+        "Digital Twin", "Virtual Model", "Predictive Simulation",
+        "Asset Mirroring", "Real-time Telemetry"
+    ],
+    "IoT_Sensors": [
+        "IoT", "Internet of Things", "Wireless Sensor Node",
+        "Vibration Monitoring", "Thermal Sensing", "Remote Diagnostics"
+    ],
+    "Predictive_Maintenance": [
+        "CBM", "Condition Based Maintenance", "Predictive Analytics",
+        "RCM", "Reliability Centered Maintenance", "Prognostics"
+    ],
+    "Green_Energy": [
+        "Hydrogen Fuel Cell", "H2", "Green Hydrogen", "PEM Fuel Cell",
+        "Battery Electric", "BESS", "Regenerative Braking"
+    ],
+    "Advanced_Materials": [
+        "Composite", "Carbon Fiber", "Graphene", "Nano-coating",
+        "Self-healing material", "Austenitic Stainless Steel"
+    ],
+    "Signaling_Control": [
+        "ETCS", "European Train Control System", "TCAS", "Kavach",
+        "CBTC", "Communications Based Train Control", "Automatic Train Protection"
+    ],
 }
 
 # -----------------------------------------------------------------------------
@@ -94,7 +117,4 @@ DRAWING_CLASSIFICATION_RULES = {
     "SCH": ["Schematic", "Diagram", "Circuit", "Flowchart", "Single Line"],
     "DET": ["Detail", "Part Drawing", "Machining", "Fabrication"],
     "BOM": ["Bill of Materials", "Parts List", "Component List", "Schedule of Qty"],
-    "ASS": ["Assembly", "Sub-Assembly", "Exploded View"],
-    "WD": ["Wiring Diagram", "Cable Schedule", "Terminal"],
-    "PID": ["Piping", "Instrumentation", "P&ID", "Process Flow"],
 }

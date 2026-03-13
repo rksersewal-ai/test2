@@ -41,18 +41,6 @@ from .training_data_specs import (
     ABBREVIATIONS_EXTENDED,
 )
 
-# Import user's custom 70K+ parameter training data
-from .training_data_user import (
-    LOCOMOTIVE_SPECS_EXTENDED,
-    ENGINE_PARAMETERS,
-    IGBT_SPECIFICATIONS,
-    DRAWING_STANDARDS,
-    TENDER_FRAMEWORK,
-    ABBREVIATIONS_USER,
-    OCR_TRAINING_PATTERNS,
-    PERFORMANCE_KPIS,
-)
-
 # Import user's additional 100K+ parameter training data (Part 2)
 from .training_data_user_part2 import (
     ICF_COACH_DATA,
@@ -71,9 +59,8 @@ from .training_data_engineering import (
     DRAWING_CLASSIFICATION_RULES,
 )
 
-
 # =============================================================================
-# DOCUMENT TYPE ENUMERATION
+# DOCUMENT TYPE ENUMERATION (Extended)
 # =============================================================================
 
 class DocumentType(Enum):
@@ -104,7 +91,7 @@ class DocumentType(Enum):
 
 
 # =============================================================================
-# EXTRACTION RESULT DATACLASS
+# EXTRACTION RESULT
 # =============================================================================
 
 @dataclass
@@ -174,7 +161,6 @@ class DocumentClassifier:
     def classify(text: str) -> Tuple[str, float]:
         scores = {}
 
-        # Check against DOCUMENT_TYPES from training data
         for doc_code, doc_info in DOCUMENT_TYPES.items():
             score = 0
             for pattern in doc_info.get('patterns', []):
@@ -197,7 +183,7 @@ class DocumentClassifier:
             },
             DocumentType.IGBT_COMPONENT_MANUAL: {
                 'keywords': ['IGBT', 'Thermal', 'Module', 'Temperature', 'Insulated Gate'],
-                'patterns': [r'(?:60|75|80|85|95)\xb0C', r'thyristor', r'converter'],
+                'patterns': [r'(?:60|75|80|85|95)\u00b0C', r'thyristor', r'converter'],
             },
             DocumentType.KAWACH_ATP_SYSTEM: {
                 'keywords': ['Kawach', 'ATP', 'SIL-4', 'SPAD', 'Automatic Train Protection', 'TCAS'],
@@ -244,8 +230,8 @@ class DocumentClassifier:
                 'codes': [r'25\s*kV', r'RDSO/EL/OHE'],
             },
             DocumentType.PASSENGER_COACH: {
-                'keywords': ['ICF', 'Integral Coach Factory', 'Passenger Coach', 'Shell',
-                             'Furnishing', 'Chair Car', 'Sleeper', 'DEMU', 'MEMU'],
+                'keywords': ['ICF', 'Integral Coach Factory', 'Passenger Coach', 'Shell', 'Furnishing',
+                             'Chair Car', 'Sleeper', 'DEMU', 'MEMU'],
                 'codes': [r'ICF/\d+', r'DEMU/\d+', r'MEMU/\d+'],
             },
             DocumentType.STANDARD_REGULATION: {
@@ -256,18 +242,15 @@ class DocumentClassifier:
 
         for doc_type, rules in classification_rules.items():
             score = scores.get(doc_type.value, 0)
-            if 'keywords' in rules:
-                for kw in rules['keywords']:
-                    if re.search(re.escape(kw), text, re.IGNORECASE):
-                        score += 2
-            if 'codes' in rules:
-                for code in rules['codes']:
-                    if re.search(code, text, re.IGNORECASE):
-                        score += 3
-            if 'patterns' in rules:
-                for pat in rules['patterns']:
-                    if re.search(pat, text, re.IGNORECASE):
-                        score += 2
+            for kw in rules.get('keywords', []):
+                if re.search(re.escape(kw), text, re.IGNORECASE):
+                    score += 2
+            for code in rules.get('codes', []):
+                if re.search(code, text, re.IGNORECASE):
+                    score += 3
+            for pat in rules.get('patterns', []):
+                if re.search(pat, text, re.IGNORECASE):
+                    score += 2
             if score > 0:
                 scores[doc_type.value] = score
 
@@ -321,8 +304,6 @@ class InformationExtractor:
                         'tot_partner': loco_info.get('tot_partner'),
                         'use_case': loco_info.get('use_case'),
                     }
-                    if loco_model in LOCOMOTIVE_SPECS_EXTENDED:
-                        data['locomotive']['extended_specs'] = LOCOMOTIVE_SPECS_EXTENDED[loco_model]
                     data['suggested_links'].append({
                         'type': 'LOCOMOTIVE',
                         'text': loco_model,
@@ -355,7 +336,11 @@ class InformationExtractor:
         for spec_key, spec_info in RDSO_SPECIFICATIONS.items():
             spec_no = spec_info.get('spec_no', '')
             if spec_no and re.search(re.escape(spec_no), text, re.IGNORECASE):
-                data['rdso_specs'].append({'key': spec_key, 'spec_no': spec_no, 'version': spec_info.get('version')})
+                data['rdso_specs'].append({
+                    'key': spec_key,
+                    'spec_no': spec_no,
+                    'version': spec_info.get('version'),
+                })
                 data['suggested_links'].append({
                     'type': 'RDSO_SPEC',
                     'text': f"{spec_key}: {spec_no}",
@@ -386,16 +371,19 @@ class InformationExtractor:
         smi_matches = re.findall(r'SMI[/-]?([A-Z]*)[/-]?(\d{4})[/-](\d{2,4})', text, re.IGNORECASE)
         if smi_matches:
             data['references']['smi'] = [f"SMI/{m[0]}/{m[1]}/{m[2]}" for m in smi_matches]
+
         jc_matches = re.findall(r'JC[/-]?(\d{4})[/-](\d{2,4})', text, re.IGNORECASE)
         if jc_matches:
             data['references']['job_card'] = [f"JC/{m[0]}/{m[1]}" for m in jc_matches]
+
         rdso_matches = re.findall(r'RDSO[/-]([A-Z]+)[/-]([A-Z\d]+)[/-](\d+)', text, re.IGNORECASE)
         if rdso_matches:
             data['references']['rdso_docs'] = [f"RDSO/{m[0]}/{m[1]}/{m[2]}" for m in rdso_matches]
+
         data['references']['dates'] = re.findall(r'(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})', text)
 
         # 6. Abbreviations
-        all_abbreviations = {**RAILWAY_ABBREVIATIONS, **ABBREVIATIONS_USER}
+        all_abbreviations = {**RAILWAY_ABBREVIATIONS}
         for abbr, full_form in all_abbreviations.items():
             if re.search(r'\b' + re.escape(abbr) + r'\b', text):
                 data['abbreviations'][abbr] = full_form
@@ -421,44 +409,8 @@ class InformationExtractor:
                 data['components'].append(comp_full)
 
         # 8. Strategic Initiatives
-        for initiative in STRATEGIC_INITIATIVES_2026.keys():
+        for initiative in STRATEGIC_INITIATIVES_2026:
             data['initiatives'].append(initiative)
-
-        # 8a. Engine & IGBT Parameters
-        if 'ENGINE' in doc_type_str.upper() or 'LOCO' in doc_type_str.upper():
-            for param, details in ENGINE_PARAMETERS.items():
-                normalized_param = param.replace('_', r'[\s_-]*')
-                if re.search(normalized_param, text, re.IGNORECASE):
-                    if 'system_details' not in data['system']:
-                        data['system']['system_details'] = {}
-                    data['system']['system_details'][param] = details
-
-        if 'IGBT' in doc_type_str.upper() or 'CONVERTER' in text.upper():
-            if 'semiconductor' in IGBT_SPECIFICATIONS:
-                device = IGBT_SPECIFICATIONS['semiconductor'].get('device', '')
-                if device and re.search(re.escape(device), text, re.IGNORECASE):
-                    if 'igbt_data' not in data['system']:
-                        data['system']['igbt_data'] = {}
-                    data['system']['igbt_data']['Device'] = device
-                    data['system']['igbt_data']['Specs'] = IGBT_SPECIFICATIONS['semiconductor']
-
-        # 8b. Tender Framework
-        if 'TENDER' in doc_type_str.upper() or 'PROCUREMENT' in doc_type_str.upper():
-            if 'tender_info' not in data:
-                data['tender_info'] = []
-            for code, name in TENDER_FRAMEWORK.get('classification', {}).items():
-                if re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE) or \
-                   re.search(r'\b' + re.escape(code) + r'\b', text):
-                    data['tender_info'].append({'term': code, 'desc': name})
-            for section, values in TENDER_FRAMEWORK.items():
-                if isinstance(values, dict):
-                    for k in values.keys():
-                        readable = k.replace('_', ' ')
-                        if re.search(r'\b' + re.escape(readable) + r'\b', text, re.IGNORECASE):
-                            data['tender_info'].append({'term': k, 'desc': f"Standard: {str(values[k])}"})
-            for ta in ["NIT", "EMD", "EOI", "RFP"]:
-                if re.search(r'\b' + re.escape(ta) + r'\b', text):
-                    data['tender_info'].append({'term': ta, 'desc': "Tender Term Found"})
 
         # 9. ICF Coach & Passenger Systems
         for motive, desc in ICF_COACH_DATA.get('classification', {}).get('motive_types', {}).items():
@@ -468,6 +420,7 @@ class InformationExtractor:
                 if motive in ICF_COACH_DATA.get('technical_specs', {}):
                     data['coach_info'].update(ICF_COACH_DATA['technical_specs'][motive])
                 break
+
         for code, desc in ICF_COACH_DATA.get('classification', {}).get('coach_codes', {}).items():
             if re.search(r'\b' + re.escape(code) + r'\b', text):
                 if 'types' not in data['coach_info']:
@@ -478,12 +431,16 @@ class InformationExtractor:
         for grade, info in RAILWAY_STANDARDS_DATA.get('material_grades', {}).get('steel_is_1570', {}).items():
             if re.search(r'\b' + re.escape(grade) + r'\b', text, re.IGNORECASE):
                 data['standards'].append({
-                    'type': 'IS Grade', 'code': grade,
-                    'desc': info.get('desc'), 'equivalent': info.get('equivalent')
+                    'type': 'IS Grade',
+                    'code': grade,
+                    'desc': info.get('desc'),
+                    'equivalent': info.get('equivalent')
                 })
+
         iris_matches = re.findall(OCR_PATTERNS_PART2['iris_asset_code'], text)
         if iris_matches:
             data['standards'].extend([{'type': 'IRIS Code', 'code': m} for m in iris_matches])
+
         for din, is_eq in RAILWAY_STANDARDS_DATA.get('din_equivalents', {}).items():
             if re.search(re.escape(din), text, re.IGNORECASE):
                 data['standards'].append({'type': 'DIN Standard', 'code': din, 'equivalent': is_eq})
@@ -516,7 +473,7 @@ class EngineeringDrawingProcessor:
             'advanced_tech': [],
         }
 
-        # 1. Title Block Extraction
+        # 1. Title Block
         for field, pattern in TITLE_BLOCK_PATTERNS.items():
             match = pattern.search(text)
             if match:
@@ -528,8 +485,10 @@ class EngineeringDrawingProcessor:
             for m in matches:
                 if len(m) >= 3:
                     info['bom_items'].append({
-                        'item_no': m[0], 'part_no': m[1],
-                        'description': m[2], 'qty': m[3] if len(m) > 3 else "1"
+                        'item_no': m[0],
+                        'part_no': m[1],
+                        'description': m[2],
+                        'qty': m[3] if len(m) > 3 else '1'
                     })
 
         # 3. GD&T Symbol Detection
@@ -572,27 +531,32 @@ class RailwayOCRPipeline:
 
         # Step 4: Build Summary
         summary_parts = [f"Classified as **{doc_type}**"]
+
         if extracted['locomotive'].get('model'):
             loco = extracted['locomotive']
             summary_parts.append(f"for **{loco['model']}**")
             if loco.get('power_hp'):
                 summary_parts.append(f"({loco['power_hp']} HP)")
+
         if extracted['maintenance'].get('schedule_code'):
             maint = extracted['maintenance']
             summary_parts.append(f"| Schedule: **{maint['schedule_code']}** ({maint.get('name', '')})")
+
         if extracted['rdso_specs']:
             specs = [s.get('spec_no', s.get('key')) for s in extracted['rdso_specs'][:2]]
             summary_parts.append(f"| RDSO: {', '.join(specs)}")
+
         if extracted['production_units']:
             units = [u['code'] for u in extracted['production_units'][:2]]
             summary_parts.append(f"| Units: {', '.join(units)}")
+
         if extracted.get('coach_info', {}).get('motive_type'):
             summary_parts.append(f"| Type: **{extracted['coach_info']['motive_type']}**")
+
         if extracted.get('standards'):
             stds = [s['code'] for s in extracted['standards'][:2]]
             summary_parts.append(f"| Standards: {', '.join(stds)}")
-        if extracted.get('tender_info'):
-            summary_parts.append(f"| Tender Terms Found: {len(extracted['tender_info'])}")
+
         if extracted.get('drawing_info', {}).get('title_block', {}).get('drawing_number'):
             drg = extracted['drawing_info']['title_block']
             summary_parts.append(f"| Drg No: **{drg['drawing_number']}**")
