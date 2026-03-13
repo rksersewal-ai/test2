@@ -1,14 +1,8 @@
 # =============================================================================
 # FILE: apps/edms/views.py
-# SPRINT 1 additions:
-#   - DocumentViewSet.custom_fields()        GET/POST  (Feature #9)
-#   - DocumentViewSet.bulk_update()          POST      (Feature #6 placeholder)
-#   - CustomFieldDefinitionViewSet           CRUD      (Feature #9, admin)
-#   - DocumentCustomFieldViewSet             CRUD      (Feature #9)
-#   - CorrespondentViewSet                   CRUD      (Feature #14)
-#   - DocumentCorrespondentLinkViewSet       CRUD      (Feature #14)
-#   - DocumentNoteViewSet                    list/create/resolve (Feature #12)
-# All existing ViewSets (Document, Revision, Category, DocumentType) unchanged.
+# SPRINT 2 addition:
+#   - DocumentViewSet.similar_documents()  GET  (Feature #8)
+# All Sprint 1 additions and existing ViewSets preserved exactly.
 # =============================================================================
 from django.utils import timezone
 from django.db import transaction
@@ -38,10 +32,6 @@ from apps.edms.services import DocumentService, RevisionService
 from apps.core.permissions import IsEngineerOrAbove, IsAdminOrSectionHead, CanManageDropdowns
 
 
-# ---------------------------------------------------------------------------
-# Existing ViewSets (with Sprint 1 actions added)
-# ---------------------------------------------------------------------------
-
 class DocumentViewSet(viewsets.ModelViewSet):
     permission_classes  = [permissions.IsAuthenticated, IsEngineerOrAbove]
     filter_backends     = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -63,6 +53,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         data = {k: v for k, v in serializer.validated_data.items()}
         DocumentService.create_document(data, created_by=self.request.user)
+
+    # ---- Existing actions ----
 
     @action(detail=False, methods=['get'], url_path='search')
     def search(self, request):
@@ -91,16 +83,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'], url_path='custom-fields')
     def custom_fields(self, request, pk=None):
         doc = self.get_object()
-
         if request.method == 'GET':
             values = DocumentCustomField.objects.filter(document=doc)\
                         .select_related('definition').order_by('definition__sort_order')
             return Response(DocumentCustomFieldSerializer(values, many=True).data)
-
-        # POST: bulk upsert all custom fields for this document in one call
         serializer = BulkUpsertCustomFieldsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         with transaction.atomic():
             results = []
             for item in serializer.validated_data['fields']:
@@ -120,17 +108,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     defaults={'field_value': field_value, 'updated_by': request.user}
                 )
                 results.append(obj)
-        return Response(DocumentCustomFieldSerializer(results, many=True).data,
-                        status=status.HTTP_200_OK)
+        return Response(DocumentCustomFieldSerializer(results, many=True).data)
 
     # ---- Sprint 1: Feature #6 placeholder — Bulk Update ----
 
     @action(detail=False, methods=['post'], url_path='bulk-update',
             permission_classes=[permissions.IsAuthenticated, IsAdminOrSectionHead])
     def bulk_update(self, request):
-        """Bulk-update status / section / document_type for a list of document IDs.
-        Accepts: {ids: [1,2,3], fields: {status: 'ACTIVE', section_id: 5}}
-        """
         ids    = request.data.get('ids', [])
         fields = request.data.get('fields', {})
         if not ids or not isinstance(ids, list):
@@ -143,6 +127,42 @@ class DocumentViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         updated = Document.objects.filter(pk__in=ids).update(**update_data)
         return Response({'updated': updated})
+
+    # ---- Sprint 2: Feature #8 — Similarity Search ----
+
+    @action(detail=True, methods=['get'], url_path='similar')
+    def similar_documents(self, request, pk=None):
+        """
+        GET /api/edms/documents/{id}/similar/
+        Optional query params:
+          ?limit=10          max results (default 10, max 25)
+          ?threshold=0.08    similarity score floor (0.0 – 1.0)
+        """
+        doc = self.get_object()  # ensures 404 + permission check
+
+        try:
+            limit = min(int(request.query_params.get('limit', 10)), 25)
+        except (TypeError, ValueError):
+            limit = 10
+
+        try:
+            threshold = float(request.query_params.get('threshold',
+                                DocumentRepository.SIMILARITY_THRESHOLD))
+            threshold = max(0.01, min(threshold, 0.99))
+        except (TypeError, ValueError):
+            threshold = DocumentRepository.SIMILARITY_THRESHOLD
+
+        results = DocumentRepository.get_similar_documents(
+            document_id=doc.pk,
+            limit=limit,
+            threshold=threshold,
+        )
+        return Response({
+            'source_id':   doc.pk,
+            'source_title': doc.title,
+            'count':       len(results),
+            'results':     results,
+        })
 
 
 class RevisionViewSet(viewsets.ModelViewSet):
@@ -175,11 +195,10 @@ class DocumentTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # ---------------------------------------------------------------------------
-# SPRINT 1 — Feature #9: Custom Field Definition admin ViewSet
+# Sprint 1 — Feature #9: Custom Field Definition admin ViewSet
 # ---------------------------------------------------------------------------
 
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
-    """Admin-only CRUD for defining custom fields per document type."""
     serializer_class   = CustomFieldDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated, CanManageDropdowns]
     filter_backends    = [DjangoFilterBackend]
@@ -193,7 +212,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
 
 
 # ---------------------------------------------------------------------------
-# SPRINT 1 — Feature #14: Correspondent ViewSets
+# Sprint 1 — Feature #14: Correspondent ViewSets
 # ---------------------------------------------------------------------------
 
 class CorrespondentViewSet(viewsets.ModelViewSet):
@@ -205,7 +224,7 @@ class CorrespondentViewSet(viewsets.ModelViewSet):
     ordering           = ['name']
 
     def get_queryset(self):
-        qs = Correspondent.objects.all()
+        qs       = Correspondent.objects.all()
         org_type = self.request.query_params.get('org_type')
         if org_type:
             qs = qs.filter(org_type=org_type)
@@ -224,7 +243,7 @@ class DocumentCorrespondentLinkViewSet(viewsets.ModelViewSet):
     filter_backends    = [DjangoFilterBackend]
 
     def get_queryset(self):
-        qs = DocumentCorrespondentLink.objects.select_related('correspondent', 'created_by')
+        qs  = DocumentCorrespondentLink.objects.select_related('correspondent', 'created_by')
         doc = self.request.query_params.get('document')
         if doc:
             qs = qs.filter(document_id=doc)
@@ -235,16 +254,13 @@ class DocumentCorrespondentLinkViewSet(viewsets.ModelViewSet):
 
 
 # ---------------------------------------------------------------------------
-# SPRINT 1 — Feature #12: Document Notes ViewSet
+# Sprint 1 — Feature #12: Document Notes ViewSet
 # ---------------------------------------------------------------------------
 
 class DocumentNoteViewSet(viewsets.GenericViewSet,
                           viewsets.mixins.ListModelMixin,
                           viewsets.mixins.CreateModelMixin,
                           viewsets.mixins.RetrieveModelMixin):
-    """Notes are append-only. No update, no delete (audit safety).
-    Use POST .../resolve/ to mark a note as resolved.
-    """
     serializer_class   = DocumentNoteSerializer
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
     filter_backends    = [DjangoFilterBackend, filters.OrderingFilter]
@@ -260,8 +276,7 @@ class DocumentNoteViewSet(viewsets.GenericViewSet,
             qs = qs.filter(document_id=doc)
         if rev:
             qs = qs.filter(revision_id=rev)
-        unresolved = self.request.query_params.get('unresolved')
-        if unresolved == 'true':
+        if self.request.query_params.get('unresolved') == 'true':
             qs = qs.filter(is_resolved=False)
         return qs
 
