@@ -4,7 +4,7 @@ Keeps views thin and orchestrates cross-cutting actions
 (audit logging, status transitions, revision numbering).
 """
 from django.db import transaction
-from apps.edms.models import Document, Revision, FileAttachment
+from apps.edms.models import Document, Revision
 from apps.audit.services import AuditService
 
 
