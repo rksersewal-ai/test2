@@ -3,7 +3,7 @@ EDMS OCR Agent - Railway Document Intelligence
 Enhanced with comprehensive Indian Railways training data (January 2026)
 """
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 
@@ -41,18 +41,6 @@ from .training_data_specs import (
     ABBREVIATIONS_EXTENDED,
 )
 
-# Import user's custom 70K+ parameter training data
-from .training_data_user import (
-    LOCOMOTIVE_SPECS_EXTENDED,
-    ENGINE_PARAMETERS,
-    IGBT_SPECIFICATIONS,
-    DRAWING_STANDARDS,
-    TENDER_FRAMEWORK,
-    ABBREVIATIONS_USER,
-    OCR_TRAINING_PATTERNS,
-    PERFORMANCE_KPIS,
-)
-
 # Import user's additional 100K+ parameter training data (Part 2)
 from .training_data_user_part2 import (
     ICF_COACH_DATA,
@@ -70,7 +58,6 @@ from .training_data_engineering import (
     NOTE_KEYWORDS,
     DRAWING_CLASSIFICATION_RULES,
 )
-
 
 # =============================================================================
 # DOCUMENT TYPE ENUMERATION (Extended)
@@ -122,11 +109,11 @@ class ExtractionResult:
     strategic_initiatives: List[str]
     summary: str
     suggested_links: List[Dict[str, str]]
-    coach_info: Dict[str, Any] = None
-    standards: List[Dict[str, Any]] = None
-    drawing_info: Dict[str, Any] = None
-    advanced_tech: List[str] = None
-    tender_info: List[Dict[str, str]] = None
+    coach_info: Dict[str, Any] = field(default_factory=dict)
+    standards: List[Dict[str, Any]] = field(default_factory=list)
+    drawing_info: Dict[str, Any] = field(default_factory=dict)
+    advanced_tech: List[str] = field(default_factory=list)
+    tender_info: List[Dict[str, str]] = field(default_factory=list)
 
 
 # =============================================================================
@@ -170,10 +157,79 @@ class OCRPreprocessor:
 class DocumentClassifier:
     """Classify documents using training data patterns"""
 
+    CLASSIFICATION_RULES = {
+        DocumentType.MAINTENANCE_SCHEDULE: {
+            'keywords': ['Maintenance Schedule', 'Periodic Overhaul', 'POH', 'IOH', 'Service', 'Interval'],
+            'codes': [r'[PT][1-5]', r'M-?\d+', r'POH', r'IOH', r'AOH'],
+        },
+        DocumentType.SPECIAL_MAINTENANCE_INSTRUCTION: {
+            'keywords': ['SMI', 'Special Maintenance', 'Instruction', 'CAMTECH'],
+            'codes': [r'SMI[/-]', r'CAMTECH[/-]'],
+        },
+        DocumentType.IGBT_COMPONENT_MANUAL: {
+            'keywords': ['IGBT', 'Thermal', 'Module', 'Temperature', 'Insulated Gate'],
+            'patterns': [r'(?:60|75|80|85|95)\u00b0C', r'thyristor', r'converter'],
+        },
+        DocumentType.KAWACH_ATP_SYSTEM: {
+            'keywords': ['Kawach', 'ATP', 'SIL-4', 'SPAD', 'Automatic Train Protection', 'TCAS'],
+            'codes': [r'v4\.0', r'RDSO/SPN/196'],
+        },
+        DocumentType.DPWCS_MULTI_UNIT: {
+            'keywords': ['DPWCS', 'Multi-Unit', 'Wireless', 'Distributed Power'],
+            'codes': [r'406.*MHz', r'407.*MHz', r'UHF'],
+        },
+        DocumentType.EOTT_GUARD_FREE: {
+            'keywords': ['EOTT', 'Guard-Free', 'End of Train', 'Telemetry'],
+        },
+        DocumentType.BATTERY_ELECTRIC: {
+            'keywords': ['Battery-Electric', 'Medha E6', 'Zero-Emission', 'Battery Shunter'],
+        },
+        DocumentType.GREEN_HYDROGEN: {
+            'keywords': ['Green Hydrogen', 'H2', 'Hydrogen-Hybrid', 'Fuel Cell'],
+        },
+        DocumentType.TOT_DOCUMENT: {
+            'keywords': ['Transfer of Technology', 'ToT', 'Technology Transfer', 'Make in India'],
+            'codes': [r'GE\s+Transportation', r'Alstom', r'Adtranz', r'ABB'],
+        },
+        DocumentType.RDSO_STANDARD: {
+            'keywords': ['RDSO', 'Research Designs', 'Standards Organisation', 'Specification'],
+            'codes': [r'RDSO/[A-Z]+/[A-Z\d]+/\d+', r'SPN/\d+'],
+        },
+        DocumentType.ENGINEERING_DRAWING: {
+            'keywords': ['Drawing', 'Drg', 'Assembly', 'Detail', 'Revision'],
+            'codes': [r'Drg\.?\s*No\.?', r'Rev\s*[A-Z]', r'CLW/', r'DLW/', r'DMW/', r'RDSO/'],
+        },
+        DocumentType.DETC_DOCUMENT: {
+            'keywords': ['DETC', 'Diesel Electric Tower Car', 'Tower Car', 'OHE Maintenance',
+                         'Lifting Platform', 'Kirloskar Cummins', 'VTA-1710L', 'Telescopic Platform'],
+            'codes': [r'DETC-', r'RDSO/ELRS/SPEC/DETC'],
+        },
+        DocumentType.TENDER_DOCUMENT: {
+            'keywords': ['Tender', 'NIT', 'Notice Inviting', 'EOI', 'Expression of Interest',
+                         'RFP', 'RFQ', 'EMD', 'Earnest Money', 'Bid', 'Quotation', 'GeM'],
+            'codes': [r'NIT/', r'EOI/', r'RFP/', r'L1', r'IREPS', r'GEM\s*ID'],
+        },
+        DocumentType.OHE_DOCUMENT: {
+            'keywords': ['OHE', 'Overhead Equipment', 'Contact Wire', 'Catenary', 'Pantograph',
+                         'TSS', 'Traction Sub-Station', 'Section Insulator', 'Mast'],
+            'codes': [r'25\s*kV', r'RDSO/EL/OHE'],
+        },
+        DocumentType.PASSENGER_COACH: {
+            'keywords': ['ICF', 'Integral Coach Factory', 'Passenger Coach', 'Shell', 'Furnishing',
+                         'Chair Car', 'Sleeper', 'DEMU', 'MEMU'],
+            'codes': [r'ICF/\d+', r'DEMU/\d+', r'MEMU/\d+'],
+        },
+        DocumentType.STANDARD_REGULATION: {
+            'keywords': ['Standard', 'Regulation', 'IS', 'DIN', 'BIS', 'IRIS', 'ISO'],
+            'codes': [r'IS\s?\d{4}', r'DIN\s?\d{4}', r'BIS', r'IRIS\s?Code', r'ISO\s?\d{4}'],
+        },
+    }
+
     @staticmethod
     def classify(text: str) -> Tuple[str, float]:
         scores = {}
 
+        # Check against DOCUMENT_TYPES from training data
         for doc_code, doc_info in DOCUMENT_TYPES.items():
             score = 0
             for pattern in doc_info.get('patterns', []):
@@ -185,88 +241,18 @@ class DocumentClassifier:
             if score > 0:
                 scores[doc_info['name']] = score
 
-        classification_rules = {
-            DocumentType.MAINTENANCE_SCHEDULE: {
-                'keywords': ['Maintenance Schedule', 'Periodic Overhaul', 'POH', 'IOH', 'Service', 'Interval'],
-                'codes': [r'[PT][1-5]', r'M-?\d+', r'POH', r'IOH', r'AOH'],
-            },
-            DocumentType.SPECIAL_MAINTENANCE_INSTRUCTION: {
-                'keywords': ['SMI', 'Special Maintenance', 'Instruction', 'CAMTECH'],
-                'codes': [r'SMI[/-]', r'CAMTECH[/-]'],
-            },
-            DocumentType.IGBT_COMPONENT_MANUAL: {
-                'keywords': ['IGBT', 'Thermal', 'Module', 'Temperature', 'Insulated Gate'],
-                'patterns': [r'(?:60|75|80|85|95)\u00b0C', r'thyristor', r'converter'],
-            },
-            DocumentType.KAWACH_ATP_SYSTEM: {
-                'keywords': ['Kawach', 'ATP', 'SIL-4', 'SPAD', 'Automatic Train Protection', 'TCAS'],
-                'codes': [r'v4\.0', r'RDSO/SPN/196'],
-            },
-            DocumentType.DPWCS_MULTI_UNIT: {
-                'keywords': ['DPWCS', 'Multi-Unit', 'Wireless', 'Distributed Power'],
-                'codes': [r'406.*MHz', r'407.*MHz', r'UHF'],
-            },
-            DocumentType.EOTT_GUARD_FREE: {
-                'keywords': ['EOTT', 'Guard-Free', 'End of Train', 'Telemetry'],
-            },
-            DocumentType.BATTERY_ELECTRIC: {
-                'keywords': ['Battery-Electric', 'Medha E6', 'Zero-Emission', 'Battery Shunter'],
-            },
-            DocumentType.GREEN_HYDROGEN: {
-                'keywords': ['Green Hydrogen', 'H2', 'Hydrogen-Hybrid', 'Fuel Cell'],
-            },
-            DocumentType.TOT_DOCUMENT: {
-                'keywords': ['Transfer of Technology', 'ToT', 'Technology Transfer', 'Make in India'],
-                'codes': [r'GE\s+Transportation', r'Alstom', r'Adtranz', r'ABB'],
-            },
-            DocumentType.RDSO_STANDARD: {
-                'keywords': ['RDSO', 'Research Designs', 'Standards Organisation', 'Specification'],
-                'codes': [r'RDSO/[A-Z]+/[A-Z\d]+/\d+', r'SPN/\d+'],
-            },
-            DocumentType.ENGINEERING_DRAWING: {
-                'keywords': ['Drawing', 'Drg', 'Assembly', 'Detail', 'Revision'],
-                'codes': [r'Drg\.?\s*No\.?', r'Rev\s*[A-Z]', r'CLW/', r'DLW/', r'DMW/', r'RDSO/'],
-            },
-            DocumentType.DETC_DOCUMENT: {
-                'keywords': ['DETC', 'Diesel Electric Tower Car', 'Tower Car', 'OHE Maintenance',
-                             'Lifting Platform', 'Kirloskar Cummins', 'VTA-1710L', 'Telescopic Platform'],
-                'codes': [r'DETC-', r'RDSO/ELRS/SPEC/DETC'],
-            },
-            DocumentType.TENDER_DOCUMENT: {
-                'keywords': ['Tender', 'NIT', 'Notice Inviting', 'EOI', 'Expression of Interest',
-                             'RFP', 'RFQ', 'EMD', 'Earnest Money', 'Bid', 'Quotation', 'GeM'],
-                'codes': [r'NIT/', r'EOI/', r'RFP/', r'L1', r'IREPS', r'GEM\s*ID'],
-            },
-            DocumentType.OHE_DOCUMENT: {
-                'keywords': ['OHE', 'Overhead Equipment', 'Contact Wire', 'Catenary', 'Pantograph',
-                             'TSS', 'Traction Sub-Station', 'Section Insulator', 'Mast'],
-                'codes': [r'25\s*kV', r'RDSO/EL/OHE'],
-            },
-            DocumentType.PASSENGER_COACH: {
-                'keywords': ['ICF', 'Integral Coach Factory', 'Passenger Coach', 'Shell',
-                             'Furnishing', 'Chair Car', 'Sleeper', 'DEMU', 'MEMU'],
-                'codes': [r'ICF/\d+', r'DEMU/\d+', r'MEMU/\d+'],
-            },
-            DocumentType.STANDARD_REGULATION: {
-                'keywords': ['Standard', 'Regulation', 'IS', 'DIN', 'BIS', 'IRIS', 'ISO'],
-                'codes': [r'IS\s?\d{4}', r'DIN\s?\d{4}', r'BIS', r'IRIS\s?Code', r'ISO\s?\d{4}'],
-            },
-        }
-
-        for doc_type, rules in classification_rules.items():
+        # Apply detailed classification rules
+        for doc_type, rules in DocumentClassifier.CLASSIFICATION_RULES.items():
             score = scores.get(doc_type.value, 0)
-            if 'keywords' in rules:
-                for kw in rules['keywords']:
-                    if re.search(re.escape(kw), text, re.IGNORECASE):
-                        score += 2
-            if 'codes' in rules:
-                for code in rules['codes']:
-                    if re.search(code, text, re.IGNORECASE):
-                        score += 3
-            if 'patterns' in rules:
-                for pat in rules['patterns']:
-                    if re.search(pat, text, re.IGNORECASE):
-                        score += 2
+            for kw in rules.get('keywords', []):
+                if re.search(re.escape(kw), text, re.IGNORECASE):
+                    score += 2
+            for code in rules.get('codes', []):
+                if re.search(code, text, re.IGNORECASE):
+                    score += 3
+            for pat in rules.get('patterns', []):
+                if re.search(pat, text, re.IGNORECASE):
+                    score += 2
             if score > 0:
                 scores[doc_type.value] = score
 
@@ -302,6 +288,7 @@ class InformationExtractor:
             'standards': [],
             'drawing_info': {},
             'advanced_tech': [],
+            'tender_info': [],
         }
 
         # 1. Locomotive Extraction
@@ -320,8 +307,6 @@ class InformationExtractor:
                         'tot_partner': loco_info.get('tot_partner'),
                         'use_case': loco_info.get('use_case'),
                     }
-                    if loco_model in LOCOMOTIVE_SPECS_EXTENDED:
-                        data['locomotive']['extended_specs'] = LOCOMOTIVE_SPECS_EXTENDED[loco_model]
                     data['suggested_links'].append({
                         'type': 'LOCOMOTIVE',
                         'text': loco_model,
@@ -352,18 +337,10 @@ class InformationExtractor:
 
         # 3. RDSO Specifications
         for spec_key, spec_info in RDSO_SPECIFICATIONS.items():
-            spec_no = spec_info.get('spec_no', '')
+            spec_no = spec_info.get('spec_no', '') if isinstance(spec_info, dict) else ''
             if spec_no and re.search(re.escape(spec_no), text, re.IGNORECASE):
-                data['rdso_specs'].append({
-                    'key': spec_key,
-                    'spec_no': spec_no,
-                    'version': spec_info.get('version'),
-                })
-                data['suggested_links'].append({
-                    'type': 'RDSO_SPEC',
-                    'text': f"{spec_key}: {spec_no}",
-                    'query': f"documents:rdso={spec_no}",
-                })
+                data['rdso_specs'].append({'key': spec_key, 'spec_no': spec_no, 'version': spec_info.get('version')})
+                data['suggested_links'].append({'type': 'RDSO_SPEC', 'text': f"{spec_key}: {spec_no}", 'query': f"documents:rdso={spec_no}"})
             if re.search(re.escape(spec_key), text, re.IGNORECASE):
                 if not any(s['key'] == spec_key for s in data['rdso_specs']):
                     data['rdso_specs'].append({'key': spec_key})
@@ -371,19 +348,11 @@ class InformationExtractor:
         # 4. Production Units
         for unit_code, unit_info in PRODUCTION_UNITS.items():
             if re.search(r'\b' + re.escape(unit_code) + r'\b', text, re.IGNORECASE):
-                data['production_units'].append({
-                    'code': unit_code,
-                    'name': unit_info.get('name'),
-                    'location': unit_info.get('location'),
-                })
+                data['production_units'].append({'code': unit_code, 'name': unit_info.get('name'), 'location': unit_info.get('location')})
             full_name = unit_info.get('name', '')
             if full_name and re.search(re.escape(full_name), text, re.IGNORECASE):
                 if not any(u['code'] == unit_code for u in data['production_units']):
-                    data['production_units'].append({
-                        'code': unit_code,
-                        'name': full_name,
-                        'location': unit_info.get('location'),
-                    })
+                    data['production_units'].append({'code': unit_code, 'name': full_name, 'location': unit_info.get('location')})
 
         # 5. Document Reference Extraction
         smi_matches = re.findall(r'SMI[/-]?([A-Z]*)[/-]?(\d{4})[/-](\d{2,4})', text, re.IGNORECASE)
@@ -397,8 +366,8 @@ class InformationExtractor:
             data['references']['rdso_docs'] = [f"RDSO/{m[0]}/{m[1]}/{m[2]}" for m in rdso_matches]
         data['references']['dates'] = re.findall(r'(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})', text)
 
-        # 6. Abbreviations Found
-        all_abbreviations = {**RAILWAY_ABBREVIATIONS, **ABBREVIATIONS_USER}
+        # 6. Abbreviations
+        all_abbreviations = {**RAILWAY_ABBREVIATIONS, **ABBREVIATIONS_EXTENDED}
         for abbr, full_form in all_abbreviations.items():
             if re.search(r'\b' + re.escape(abbr) + r'\b', text):
                 data['abbreviations'][abbr] = full_form
@@ -427,43 +396,14 @@ class InformationExtractor:
         for initiative in STRATEGIC_INITIATIVES_2026.keys():
             data['initiatives'].append(initiative)
 
-        # 8a. Engine & IGBT Parameters
-        if 'ENGINE' in doc_type_str.upper() or 'LOCO' in doc_type_str.upper():
-            for param, details in ENGINE_PARAMETERS.items():
-                normalized_param = param.replace('_', r'[\s_-]*')
-                if re.search(normalized_param, text, re.IGNORECASE):
-                    if 'system_details' not in data['system']:
-                        data['system']['system_details'] = {}
-                    data['system']['system_details'][param] = details
-
-        if 'IGBT' in doc_type_str.upper() or 'CONVERTER' in text.upper():
-            if 'semiconductor' in IGBT_SPECIFICATIONS:
-                device = IGBT_SPECIFICATIONS['semiconductor'].get('device', '')
-                if device and re.search(re.escape(device), text, re.IGNORECASE):
-                    if 'igbt_data' not in data['system']:
-                        data['system']['igbt_data'] = {}
-                    data['system']['igbt_data']['Device'] = device
-                    data['system']['igbt_data']['Specs'] = IGBT_SPECIFICATIONS['semiconductor']
-
-        # 8b. Tender Framework
+        # 9. Tender Framework
         if 'TENDER' in doc_type_str.upper() or 'PROCUREMENT' in doc_type_str.upper():
-            if 'tender_info' not in data:
-                data['tender_info'] = []
-            for code, name in TENDER_FRAMEWORK.get('classification', {}).items():
-                if re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE) or re.search(r'\b' + re.escape(code) + r'\b', text):
-                    data['tender_info'].append({'term': code, 'desc': name})
-            for section, values in TENDER_FRAMEWORK.items():
-                if isinstance(values, dict):
-                    for k in values.keys():
-                        readable = k.replace('_', ' ')
-                        if re.search(r'\b' + re.escape(readable) + r'\b', text, re.IGNORECASE):
-                            val = str(values[k])
-                            data['tender_info'].append({'term': k, 'desc': f"Standard: {val}"})
-            for ta in ["NIT", "EMD", "EOI", "RFP"]:
+            tender_abbrs = ["NIT", "EMD", "EOI", "RFP"]
+            for ta in tender_abbrs:
                 if re.search(r'\b' + re.escape(ta) + r'\b', text):
-                    data['tender_info'].append({'term': ta, 'desc': "Tender Term Found"})
+                    data['tender_info'].append({'term': ta, 'desc': 'Tender Term Found'})
 
-        # 9. ICF Coach & Passenger Systems
+        # 10. ICF Coach Data
         for motive, desc in ICF_COACH_DATA.get('classification', {}).get('motive_types', {}).items():
             if re.search(r'\b' + re.escape(motive) + r'\b', text, re.IGNORECASE):
                 data['coach_info']['motive_type'] = motive
@@ -477,15 +417,10 @@ class InformationExtractor:
                     data['coach_info']['types'] = []
                 data['coach_info']['types'].append(f"{code} ({desc})")
 
-        # 10. Standards & Regulations
+        # 11. Standards
         for grade, info in RAILWAY_STANDARDS_DATA.get('material_grades', {}).get('steel_is_1570', {}).items():
             if re.search(r'\b' + re.escape(grade) + r'\b', text, re.IGNORECASE):
-                data['standards'].append({
-                    'type': 'IS Grade',
-                    'code': grade,
-                    'desc': info.get('desc'),
-                    'equivalent': info.get('equivalent')
-                })
+                data['standards'].append({'type': 'IS Grade', 'code': grade, 'desc': info.get('desc'), 'equivalent': info.get('equivalent')})
         iris_matches = re.findall(OCR_PATTERNS_PART2['iris_asset_code'], text)
         if iris_matches:
             data['standards'].extend([{'type': 'IRIS Code', 'code': m} for m in iris_matches])
@@ -493,7 +428,7 @@ class InformationExtractor:
             if re.search(re.escape(din), text, re.IGNORECASE):
                 data['standards'].append({'type': 'DIN Standard', 'code': din, 'equivalent': is_eq})
 
-        # 11. Engineering Drawing Processing
+        # 12. Engineering Drawing Processing
         if doc_type_str == DocumentType.ENGINEERING_DRAWING.value or 'DRAWING' in doc_type_str.upper():
             drawing_data = EngineeringDrawingProcessor.process_drawing(text)
             data['drawing_info'] = drawing_data
@@ -522,10 +457,10 @@ class EngineeringDrawingProcessor:
         }
 
         # 1. Title Block Extraction
-        for field, pattern in TITLE_BLOCK_PATTERNS.items():
+        for field_name, pattern in TITLE_BLOCK_PATTERNS.items():
             match = pattern.search(text)
             if match:
-                info['title_block'][field] = match.group(1).strip()
+                info['title_block'][field_name] = match.group(1).strip()
 
         # 2. BOM Extraction
         if any(h in text.upper() for h in BOM_HEADERS[:3]):
@@ -533,10 +468,8 @@ class EngineeringDrawingProcessor:
             for m in matches:
                 if len(m) >= 3:
                     info['bom_items'].append({
-                        'item_no': m[0],
-                        'part_no': m[1],
-                        'description': m[2],
-                        'qty': m[3] if len(m) > 3 else "1"
+                        'item_no': m[0], 'part_no': m[1],
+                        'description': m[2], 'qty': m[3] if len(m) > 3 else '1'
                     })
 
         # 3. GD&T Symbol Detection
@@ -579,49 +512,30 @@ class RailwayOCRPipeline:
 
         # Step 4: Build Summary
         summary_parts = [f"Classified as **{doc_type}**"]
-
         if extracted['locomotive'].get('model'):
             loco = extracted['locomotive']
             summary_parts.append(f"for **{loco['model']}**")
             if loco.get('power_hp'):
                 summary_parts.append(f"({loco['power_hp']} HP)")
-
         if extracted['maintenance'].get('schedule_code'):
             maint = extracted['maintenance']
             summary_parts.append(f"| Schedule: **{maint['schedule_code']}** ({maint.get('name', '')})")
-
         if extracted['rdso_specs']:
             specs = [s.get('spec_no', s.get('key')) for s in extracted['rdso_specs'][:2]]
             summary_parts.append(f"| RDSO: {', '.join(specs)}")
-
         if extracted['production_units']:
             units = [u['code'] for u in extracted['production_units'][:2]]
             summary_parts.append(f"| Units: {', '.join(units)}")
-
-        if extracted.get('coach_info'):
-            c_info = extracted['coach_info']
-            if c_info.get('motive_type'):
-                summary_parts.append(f"| Type: **{c_info['motive_type']}**")
-            if c_info.get('types'):
-                summary_parts.append(f"| Coaches: {', '.join(c_info['types'][:2])}")
-
+        if extracted.get('coach_info', {}).get('motive_type'):
+            summary_parts.append(f"| Type: **{extracted['coach_info']['motive_type']}**")
         if extracted.get('standards'):
             stds = [s['code'] for s in extracted['standards'][:2]]
             summary_parts.append(f"| Standards: {', '.join(stds)}")
-
-        if extracted.get('system', {}).get('system_details'):
-            sys = list(extracted['system']['system_details'].keys())[:2]
-            summary_parts.append(f"| Engine: {', '.join(sys)}")
-
         if extracted.get('tender_info'):
             summary_parts.append(f"| Tender Terms Found: {len(extracted['tender_info'])}")
-
-        if extracted.get('drawing_info'):
-            drg = extracted['drawing_info'].get('title_block', {})
-            if drg.get('drawing_number'):
-                summary_parts.append(f"| Drg No: **{drg['drawing_number']}**")
-            if drg.get('scale'):
-                summary_parts.append(f"(Scale {drg['scale']})")
+        if extracted.get('drawing_info', {}).get('title_block', {}).get('drawing_number'):
+            drg = extracted['drawing_info']['title_block']
+            summary_parts.append(f"| Drg No: **{drg['drawing_number']}**")
 
         summary = ' '.join(summary_parts)
 

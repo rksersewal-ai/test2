@@ -26,16 +26,6 @@ LOCOMOTIVE_DATABASE = {
         "use_case": "Heavy-haul freight",
         "special_features": ["Trip Optimizer", "Distributed Power", "LOCOTROL"],
     },
-    "WDG-5": {
-        "type": "Diesel-Electric",
-        "power_hp": 5500,
-        "power_kw": 4103,
-        "max_speed_kmph": 100,
-        "manufacturer": "Banaras Locomotive Works",
-        "tot_partner": "GE Transportation",
-        "status": "Operational",
-        "use_case": "Freight",
-    },
     "WDG-4G": {
         "type": "Diesel-Electric",
         "power_hp": 4500,
@@ -119,6 +109,7 @@ LOCOMOTIVE_DATABASE = {
         "start_date": "March 2025",
         "speed_kmph": 110,
         "manufacturer": "RDSO Design",
+        "trial_route": "Kalka-Shimla / Jind-Sonipat",
         "fuel": "Green Hydrogen",
         "emissions": "Zero (Water vapor only)",
     },
@@ -127,6 +118,7 @@ LOCOMOTIVE_DATABASE = {
         "power": "Battery + OHE",
         "manufacturer": "CLW / RDSO Design",
         "use_case": "Yard shunting (non-electrified sections)",
+        "spec_ref": "RDSO/2020/EL-HY/Draft",
     },
     "Medha E6": {
         "type": "Battery-Electric",
@@ -184,7 +176,6 @@ RDSO_SPECIFICATIONS = {
         "spec_no": "RDSO/SPN/EOTT/2024",
         "name": "End of Train Telemetry",
         "description": "Guard-free freight operation",
-        "max_locos_controlled": 12,
     },
     "IGBT_MODULE": {
         "spec_no": "RDSO/PE/SPEC/TL/0236",
@@ -212,17 +203,17 @@ RDSO_SPECIFICATIONS = {
 }
 
 # =============================================================================
-# SECTION 4: MANUFACTURING / PRODUCTION UNITS
+# SECTION 4: MANUFACTURING UNITS
 # =============================================================================
 
 PRODUCTION_UNITS = {
-    "CLW": {"name": "Chittaranjan Locomotive Works", "location": "Chittaranjan, West Bengal", "established": 1950, "products": ["WAP-5", "WAP-7", "WAG-9", "WAG-12B"], "capacity_per_year": 500},
-    "DLF": {"name": "Diesel Locomotive Factory", "location": "Marhowrah, Bihar", "established": 2016, "products": ["WDG-6G", "WDG-4G"], "aliases": ["DLW Marhowrah"]},
-    "DLW": {"name": "Diesel Locomotive Works", "location": "Varanasi, Uttar Pradesh", "established": 1961, "products": ["WDM-3A", "WDP-4D", "WDG-4"]},
-    "DMW": {"name": "Diesel Loco Modernisation Works", "location": "Patiala, Punjab", "established": 1981, "aliases": ["PLW"]},
-    "BLW": {"name": "Banaras Locomotive Works", "location": "Varanasi, Uttar Pradesh", "products": ["WDG-5"]},
+    "CLW": {"name": "Chittaranjan Locomotive Works", "location": "Chittaranjan, West Bengal", "established": 1950, "products": ["Electric Locomotives", "WAP-5", "WAP-7", "WAG-9", "WAG-12B"], "capacity_per_year": 500, "certifications": ["ISO 9001", "ISO 14001"], "tot_partners": ["Adtranz/ABB (WAP-5)", "Alstom (WAG-12B)"]},
+    "DLF": {"name": "Diesel Locomotive Factory", "location": "Marhowrah, Bihar", "established": 2016, "products": ["WDG-6G", "WDG-4G"], "capacity_per_year": 100, "tot_partners": ["GE Transportation"], "aliases": ["DLW Marhowrah"]},
+    "DLW": {"name": "Diesel Locomotive Works", "location": "Varanasi, Uttar Pradesh", "established": 1961, "products": ["WDM-3A", "WDP-4D", "WDG-4"], "capacity_per_year": 200, "status": "Transitioning to electric components"},
+    "DMW": {"name": "Diesel Loco Modernisation Works", "location": "Patiala, Punjab", "established": 1981, "products": ["Loco upgrades", "Component manufacturing", "POH"], "aliases": ["PLW (Patiala Locomotive Works)"], "certifications": ["ISO 9001:2015"]},
+    "BLW": {"name": "Banaras Locomotive Works", "location": "Varanasi, Uttar Pradesh", "products": ["WDG-5", "ALCO locos"], "capacity": 150},
     "ICF": {"name": "Integral Coach Factory", "location": "Chennai, Tamil Nadu", "products": ["LHB Coaches", "Vande Bharat", "Amrit Bharat"]},
-    "RCF": {"name": "Rail Coach Factory", "location": "Kapurthala, Punjab", "products": ["LHB Coaches"]},
+    "RCF": {"name": "Rail Coach Factory", "location": "Kapurthala, Punjab", "products": ["LHB Coaches", "AC Coaches"]},
 }
 
 # =============================================================================
@@ -231,12 +222,12 @@ PRODUCTION_UNITS = {
 
 DOCUMENT_TYPES = {
     "DRG": {"code": "DRG", "name": "Engineering Drawing", "patterns": [r"Drg\.?\s*No\.?", r"Drawing\s+Number", r"RDSO\s+Drg"], "numbering": r"[A-Z]{2,4}/\d{2,4}/[A-Z\d]+/\d+"},
-    "SMI": {"code": "SMI", "name": "Special Maintenance Instruction", "patterns": [r"SMI[/-]", r"Special\s+Maintenance\s+Instruction"], "numbering": r"SMI[/-]?[A-Z]*[/-]?\d{4}[/-]\d{2,4}"},
+    "SMI": {"code": "SMI", "name": "Special Maintenance Instruction", "patterns": [r"SMI[/-]", r"Special\s+Maintenance\s+Instruction"], "numbering": r"SMI[/-]?[A-Z]*[/-]?\d{4}[/-]\d{2,4}", "issuing_authority": ["RDSO", "CLW", "DLW", "Zonal Railways"]},
     "CAMTECH": {"code": "CAMTECH", "name": "CAMTECH Technical Bulletin", "patterns": [r"CAMTECH", r"Technical\s+Bulletin"], "numbering": r"CAMTECH[/-]\d{4}[/-]\d{2,4}"},
-    "STR": {"code": "STR", "name": "Schedule of Technical Requirements", "patterns": [r"STR", r"Schedule\s+of\s+Technical"]},
+    "STR": {"code": "STR", "name": "Schedule of Technical Requirements", "patterns": [r"STR", r"Schedule\s+of\s+Technical"], "use": "Tender specifications"},
     "JC": {"code": "JC", "name": "Job Card", "patterns": [r"JC[/-]", r"Job\s+Card"], "numbering": r"JC[/-]?\d{4}[/-]\d{3,4}"},
-    "SR": {"code": "SR", "name": "Service Record", "patterns": [r"SR[/-]", r"Service\s+Record"]},
-    "EC": {"code": "EC", "name": "Engineering Change", "patterns": [r"EC[/-]", r"Engineering\s+Change"]},
+    "SR": {"code": "SR", "name": "Service Record", "patterns": [r"SR[/-]", r"Service\s+Record"], "numbering": r"SR[/-]?[A-Z0-9]+[/-]\d+[/-]\d{4}"},
+    "EC": {"code": "EC", "name": "Engineering Change", "patterns": [r"EC[/-]", r"Engineering\s+Change"], "numbering": r"EC[/-]?\d{4}[/-]\d+"},
     "TB": {"code": "TB", "name": "Technical Bulletin", "patterns": [r"TB[/-]", r"Tech\.?\s*Bulletin"]},
     "TI": {"code": "TI", "name": "Technical Instruction", "patterns": [r"TI[/-]", r"Technical\s+Instruction"]},
     "SOP": {"code": "SOP", "name": "Standard Operating Procedure", "patterns": [r"SOP[/-]", r"Standard\s+Operating"]},
@@ -263,7 +254,7 @@ RAILWAY_ABBREVIATIONS = {
     "ATP": "Automatic Train Protection",
     "ATC": "Automatic Train Control",
     "TCAS": "Train Collision Avoidance System",
-    "KAVACH": "Kavach (Indigenous ATP)",
+    "KAVACH": "Kavach (Indigenous ATP - means Armor)",
     "SPAD": "Signal Passed At Danger",
     "OHE": "Overhead Equipment (25kV AC)",
     "EMU": "Electric Multiple Unit",
@@ -278,10 +269,13 @@ RAILWAY_ABBREVIATIONS = {
     "ROH": "Routine Overhaul",
     "TXR": "Traction Motor Exchange Repair",
     "SSE": "Senior Section Engineer",
+    "CWI": "Chief Workshop Inspector",
     "CME": "Chief Mechanical Engineer",
     "CEE": "Chief Electrical Engineer",
     "ToT": "Transfer of Technology",
     "DFC": "Dedicated Freight Corridor",
+    "WDFC": "Western Dedicated Freight Corridor",
+    "EDFC": "Eastern Dedicated Freight Corridor",
     "DFCCIL": "Dedicated Freight Corridor Corporation of India Ltd",
 }
 
@@ -299,13 +293,13 @@ TECHNICAL_PARAMETERS = {
 }
 
 # =============================================================================
-# SECTION 8: STRATEGIC INITIATIVES 2025-2026
+# SECTION 8: STRATEGIC INITIATIVES (2025-2026)
 # =============================================================================
 
 STRATEGIC_INITIATIVES_2026 = {
-    "ELECTRIFICATION": {"target": "100% passenger trains electric by FY 2025-26", "current_percentage": 95},
-    "GREEN_RAIL": {"hydrogen_train_pilot": "March 2025", "net_zero_target": 2030},
-    "KAVACH_ROLLOUT": {"target_km": 5000, "target_year": "2024-25"},
+    "ELECTRIFICATION": {"target": "100% passenger trains electric by FY 2025-26", "current_percentage": 95, "remaining_diesel_routes": ["Hill sections", "Remote areas"]},
+    "GREEN_RAIL": {"hydrogen_train_pilot": "March 2025", "battery_shunters": "Under development", "diesel_replacement_target": 2500, "net_zero_target": 2030},
+    "KAVACH_ROLLOUT": {"target_km": 5000, "target_year": "2024-25", "funding": "Approved Jan 2026"},
     "VANDE_BHARAT": {"sleeper_version": "Launch 2026", "target_trainsets": 400, "current_operational": 100},
-    "AMRIT_BHARAT": {"gen2_prototype": "2025", "features": ["Semi-auto couplers", "EP brakes", "Sealed gangway"]},
+    "AMRIT_BHARAT": {"gen2_prototype": "2025", "features": ["Semi-auto couplers", "EP brakes", "Sealed gangway", "Onboard monitoring"]},
 }
