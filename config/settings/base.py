@@ -1,7 +1,6 @@
 # =============================================================================
 # FILE: config/settings/base.py
 # =============================================================================
-"""Base settings shared across all environments - PLW EDMS + LDO."""
 import os
 from pathlib import Path
 from decouple import config
@@ -38,10 +37,12 @@ INSTALLED_APPS = [
     'apps.sharelinks',
     'apps.webhooks',
     'apps.scanner',
-    # PL Master module (PRD amendment PLW/LDO/PRD/2026/001 v1.0)
+    # PL Master module
     'apps.pl_master',
-    # Work Ledger module (PRD Section 4.1 — Individual Work Tracking)
+    # Work Ledger module
     'apps.work_ledger',
+    # Shop Drawing Request module
+    'apps.sdr',
 ]
 
 MIDDLEWARE = [
@@ -86,9 +87,7 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST':     config('DB_HOST',     default='localhost'),
         'PORT':     config('DB_PORT',     default='5432'),
-        'OPTIONS': {
-            'options': '-c search_path=public',
-        },
+        'OPTIONS': {'options': '-c search_path=public'},
         'CONN_MAX_AGE': 60,
     }
 }
@@ -117,7 +116,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# DRF
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -132,15 +130,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 25,
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.UserRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'user': '500/hour',
-    },
+    'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.UserRateThrottle'],
+    'DEFAULT_THROTTLE_RATES': {'user': '500/hour'},
 }
 
-# JWT
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -151,22 +144,18 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN':  True,
 }
 
-# File Upload
-FILE_UPLOAD_MAX_MEMORY_SIZE  = 52428800   # 50 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE  = 52428800
-ALLOWED_UPLOAD_EXTENSIONS    = ['.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png']
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
+ALLOWED_UPLOAD_EXTENSIONS   = ['.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png']
 
-# OCR
 OCR_TESSERACT_CMD  = config('TESSERACT_CMD', default=r'C:\Program Files\Tesseract-OCR\tesseract.exe')
 OCR_DEFAULT_LANG   = 'eng'
 OCR_DPI            = 300
 OCR_WATCH_FOLDER   = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
 OCR_MAX_RETRIES    = 3
 
-# LAN Security
-ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
+ALLOWED_IP_RANGES  = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
 
-# Celery
 CELERY_BROKER_URL        = config('CELERY_BROKER_URL',    default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND    = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT    = ['json']

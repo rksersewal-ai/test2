@@ -12,15 +12,14 @@ from rest_framework_simplejwt.views import (
 API_V1 = 'api/v1/'
 
 urlpatterns = [
-    # Admin
     path('admin/', admin.site.urls),
 
-    # Standard JWT auth
+    # JWT auth
     path(API_V1 + 'auth/token/',         TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(),   name='token_refresh'),
     path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),    name='token_verify'),
 
-    # App APIs (Sprints 1–8)
+    # App APIs
     path(API_V1 + 'core/',       include('apps.core.urls')),
     path(API_V1 + 'edms/',       include('apps.edms.urls')),
     path(API_V1 + 'workflow/',   include('apps.workflow.urls')),
@@ -33,14 +32,13 @@ urlpatterns = [
     path(API_V1 + 'sharelinks/', include('apps.sharelinks.urls')),
     path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
     path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
-
-    # PL Master module
     path(API_V1 + 'pl-master/',  include('apps.pl_master.urls')),
-
-    # Work Ledger module — PRD Section 4.1 (Individual Work Tracking)
     path(API_V1 + 'work/',       include('apps.work_ledger.urls')),
 
-    # Sprint 7: Public share-link routes (no auth required)
+    # Shop Drawing Request module
+    path(API_V1 + 'sdr/',        include('apps.sdr.urls')),
+
+    # Sprint 7: public share-link routes
     path('s/', include(('apps.sharelinks.urls', 'sharelinks'), namespace='sharelinks-public')),
 ]
 

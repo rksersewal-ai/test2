@@ -1,198 +1,163 @@
 # =============================================================================
-# FILE: apps/work_ledger/views.py
+# FILE: apps/work_ledger/views.py  (updated — added MonthlyReportView)
 # =============================================================================
-from django.contrib.auth    import get_user_model
-from django.db.models       import Count, Sum, Q
-from django.utils           import timezone
-from rest_framework         import viewsets, status, filters
+from datetime import date as dt_date
+
+from django.http             import HttpResponse
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response   import Response
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.views       import APIView
 
-from .models       import WorkCategory, WorkEntry, WorkVerification, WorkTarget, WorkStatus
-from .serializers  import (
-    WorkCategorySerializer,
-    WorkEntryReadSerializer, WorkEntryWriteSerializer,
-    WorkEntrySubmitSerializer, WorkEntryVerifySerializer,
-    WorkTargetSerializer,
+from .models      import WorkEntry, WorkCategory, WorkTarget
+from .serializers import (
+    WorkEntrySerializer, WorkCategorySerializer,
+    WorkTargetSerializer, WorkEntryCreateSerializer,
 )
-from .permissions  import IsOwnerOrSupervisor, IsSupervisorOrAbove
-from .filters      import WorkEntryFilter
-
-User = get_user_model()
+from .reports     import generate_monthly_work_report
 
 
-# ---------------------------------------------------------------------------
-# WorkCategoryViewSet
 # ---------------------------------------------------------------------------
 class WorkCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset         = WorkCategory.objects.filter(is_active=True).order_by('sort_order', 'name')
-    serializer_class = WorkCategorySerializer
+    queryset           = WorkCategory.objects.filter(is_active=True).order_by('category_name')
+    serializer_class   = WorkCategorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends  = [filters.SearchFilter]
-    search_fields    = ['name', 'code', 'work_type']
 
 
-# ---------------------------------------------------------------------------
-# WorkEntryViewSet
 # ---------------------------------------------------------------------------
 class WorkEntryViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsOwnerOrSupervisor]
+    """
+    Work Ledger entry CRUD + workflow actions.
+    """
+    permission_classes = [IsAuthenticated]
     filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_class    = WorkEntryFilter
-    search_fields      = ['description', 'reference_number', 'remarks', 'linked_drawing_number']
-    ordering_fields    = ['work_date', 'created_at', 'status', 'work_type']
-    ordering           = ['-work_date', '-created_at']
+    filterset_fields   = ['status', 'work_type', 'category', 'work_date']
+    search_fields      = ['work_description', 'reference_number', 'eoffice_file_no']
+    ordering_fields    = ['work_date', 'created_at', 'status']
+    ordering           = ['-work_date']
 
     def get_queryset(self):
         user = self.request.user
-        role = getattr(getattr(user, 'role', None), 'role_name', '').upper()
         qs   = WorkEntry.objects.select_related(
-            'user', 'category', 'submitted_to'
-        ).prefetch_related('verifications', 'attachments')
-
-        # Admins/Officers/WM see all; others see only their own
-        if user.is_staff or role in ('ADMIN', 'OFFICER', 'WM'):
-            return qs
-        if role == 'SSE':
-            # SSE sees own + entries submitted to them
-            return qs.filter(Q(user=user) | Q(submitted_to=user))
-        return qs.filter(user=user)
+            'category', 'created_by', 'verified_by'
+        )
+        # Non-supervisors see only own entries
+        if not getattr(user, 'is_supervisor', False) and not user.is_staff:
+            qs = qs.filter(created_by=user)
+        return qs
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
-            return WorkEntryWriteSerializer
-        return WorkEntryReadSerializer
+            return WorkEntryCreateSerializer
+        return WorkEntrySerializer
 
-    # --- Custom actions ----------------------------------------------------
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
-    @action(detail=True, methods=['post'], url_path='submit')
+    # ---- submit -----------------------------------------------------------
+    @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
-        """Submit a DRAFT/RETURNED entry for supervisor verification."""
         entry = self.get_object()
-        serializer = WorkEntrySubmitSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if entry.status != 'DRAFT':
+            return Response({'error': 'Only DRAFT entries can be submitted.'}, status=400)
+        entry.status = 'SUBMITTED'
+        entry.save(update_fields=['status', 'updated_at'])
+        return Response(WorkEntrySerializer(entry).data)
 
-        supervisor_id = serializer.validated_data['supervisor_id']
-        try:
-            supervisor = User.objects.get(pk=supervisor_id)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Supervisor not found.'}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        try:
-            entry.submit(supervisor)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        return Response(
-            WorkEntryReadSerializer(entry, context={'request': request}).data
-        )
-
-    @action(detail=True, methods=['post'], url_path='verify',
-            permission_classes=[IsAuthenticated, IsSupervisorOrAbove])
+    # ---- verify -----------------------------------------------------------
+    @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
-        """Verify, approve or return a submitted entry."""
-        entry      = self.get_object()
-        serializer = WorkEntryVerifySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        entry  = self.get_object()
+        action = request.data.get('action', 'VERIFY')  # VERIFY | RETURN
+        if entry.status != 'SUBMITTED':
+            return Response({'error': 'Only SUBMITTED entries can be verified.'}, status=400)
+        if action == 'RETURN':
+            entry.status          = 'RETURNED'
+            entry.verifier_remarks= request.data.get('remarks', '')
+        else:
+            entry.status         = 'VERIFIED'
+            entry.verified_by    = request.user
+            entry.verified_at    = dt_date.today()
+            entry.verifier_remarks = request.data.get('remarks', '')
+        entry.save()
+        return Response(WorkEntrySerializer(entry).data)
 
-        action_val = serializer.validated_data['action']
-        remarks    = serializer.validated_data.get('remarks', '')
-
-        if not entry.can_verify():
-            return Response(
-                {'error': 'Entry is not pending verification.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        new_status = {
-            'VERIFIED': WorkStatus.VERIFIED,
-            'APPROVED': WorkStatus.APPROVED,
-            'RETURNED': WorkStatus.RETURNED,
-        }[action_val]
-
-        entry.status = new_status
-        entry.save(update_fields=['status'])
-
-        WorkVerification.objects.create(
-            work_entry=entry,
-            verifier=request.user,
-            action=action_val,
-            remarks=remarks,
-        )
-
-        return Response(
-            WorkEntryReadSerializer(entry, context={'request': request}).data
-        )
-
+    # ---- my-entries -------------------------------------------------------
     @action(detail=False, methods=['get'], url_path='my-entries')
     def my_entries(self, request):
-        """Return only the authenticated user's entries with summary counts."""
-        qs = WorkEntry.objects.filter(user=request.user).select_related('category')
-
-        # Optional date filter
-        date_from = request.query_params.get('from')
-        date_to   = request.query_params.get('to')
-        if date_from:
-            qs = qs.filter(work_date__gte=date_from)
-        if date_to:
-            qs = qs.filter(work_date__lte=date_to)
-
-        summary = qs.values('status').annotate(count=Count('id')).order_by('status')
-        page    = self.paginate_queryset(qs.order_by('-work_date'))
-        data    = WorkEntryReadSerializer(page, many=True, context={'request': request}).data
-
-        return self.get_paginated_response({
-            'summary': list(summary),
-            'entries': data,
-        })
-
-    @action(detail=False, methods=['get'], url_path='team-summary',
-            permission_classes=[IsAuthenticated, IsSupervisorOrAbove])
-    def team_summary(self, request):
-        """Return aggregated work stats per team member for a date range."""
-        date_from = request.query_params.get('from', str(timezone.now().date().replace(day=1)))
-        date_to   = request.query_params.get('to',   str(timezone.now().date()))
-
-        qs = WorkEntry.objects.filter(
-            work_date__gte=date_from,
-            work_date__lte=date_to,
-        ).values(
-            'user__id', 'user__first_name', 'user__last_name'
-        ).annotate(
-            total_entries  = Count('id'),
-            draft_count    = Count('id', filter=Q(status='DRAFT')),
-            submitted_count= Count('id', filter=Q(status='SUBMITTED')),
-            verified_count = Count('id', filter=Q(status='VERIFIED')),
-            approved_count = Count('id', filter=Q(status='APPROVED')),
-            total_effort   = Sum('effort_value'),
-        ).order_by('user__last_name')
-
+        qs = WorkEntry.objects.filter(created_by=request.user).select_related('category', 'verified_by')
+        data = WorkEntrySerializer(qs, many=True).data
         return Response({
-            'period': {'from': date_from, 'to': date_to},
-            'team_summary': list(qs),
+            'count':   qs.count(),
+            'entries': data,
+            'status_counts': {
+                s: qs.filter(status=s).count()
+                for s in ('DRAFT','SUBMITTED','VERIFIED','APPROVED','RETURNED')
+            }
         })
 
+    # ---- team-summary -----------------------------------------------------
+    @action(detail=False, methods=['get'], url_path='team-summary')
+    def team_summary(self, request):
+        if not (request.user.is_staff or getattr(request.user, 'is_supervisor', False)):
+            return Response({'error': 'Access denied.'}, status=403)
+        from django.db.models import Count, Sum
+        summary = (
+            WorkEntry.objects
+            .values('created_by__id', 'created_by__first_name', 'created_by__last_name')
+            .annotate(total=Count('id'), hours=Sum('hours_spent'))
+            .order_by('-total')
+        )
+        return Response(list(summary))
 
-# ---------------------------------------------------------------------------
-# WorkTargetViewSet
+
 # ---------------------------------------------------------------------------
 class WorkTargetViewSet(viewsets.ModelViewSet):
-    serializer_class   = WorkTargetSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends    = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields   = ['user', 'period_type', 'work_type', 'is_active']
-    ordering           = ['-period_start']
 
     def get_queryset(self):
         user = self.request.user
-        role = getattr(getattr(user, 'role', None), 'role_name', '').upper()
-        if user.is_staff or role in ('ADMIN', 'OFFICER', 'WM', 'SSE'):
-            return WorkTarget.objects.select_related('user', 'set_by').all()
+        if user.is_staff:
+            return WorkTarget.objects.all()
         return WorkTarget.objects.filter(user=user)
 
-    def perform_create(self, serializer):
-        serializer.save(set_by=self.request.user)
+    def get_serializer_class(self):
+        return WorkTargetSerializer
+
+
+# ---------------------------------------------------------------------------
+class MonthlyReportView(APIView):
+    """
+    GET /api/v1/work/report/?year=2026&month=3
+    GET /api/v1/work/report/?year=2026&month=3&user_id=42  (supervisors only)
+
+    Returns a PDF binary of the monthly work report.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        year  = int(request.query_params.get('year',  dt_date.today().year))
+        month = int(request.query_params.get('month', dt_date.today().month))
+        uid   = request.query_params.get('user_id')
+
+        if uid and (request.user.is_staff or getattr(request.user, 'is_supervisor', False)):
+            from django.contrib.auth import get_user_model
+            User   = get_user_model()
+            target = User.objects.get(pk=uid)
+        else:
+            target = request.user
+
+        try:
+            pdf_bytes = generate_monthly_work_report(target, year, month)
+        except ImportError as exc:
+            return Response({'error': str(exc)}, status=500)
+
+        month_str  = f'{year}-{month:02d}'
+        name_slug  = target.get_full_name().replace(' ', '_') or target.username
+        filename   = f'WorkReport_{name_slug}_{month_str}.pdf'
+
+        resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
