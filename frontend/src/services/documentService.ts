@@ -1,39 +1,79 @@
 // =============================================================================
 // FILE: frontend/src/services/documentService.ts
+// CANONICAL document service. documents.ts re-exports from here.
+// Uses shared apiClient (withCredentials set globally).
 // =============================================================================
-import api from '../api/axios';
+import apiClient from './apiClient';
+import type { PaginatedResponse } from '../api/types';
 
-const BASE = '/edms';
+export interface Document {
+  id           : number;
+  doc_number   : string;
+  title        : string;
+  doc_type     : string;
+  revision     : string;
+  status       : 'draft' | 'review' | 'approved' | 'rejected' | 'superseded';
+  loco_class   : string;
+  uploaded_by  : string;
+  created_at   : string;
+  updated_at   : string;
+  file_url?    : string;
+  file_size?   : number;
+  page_count?  : number;
+}
+
+export interface DocumentFilters {
+  page?      : number;
+  page_size? : number;
+  search?    : string;
+  status?    : string;
+  doc_type?  : string;
+  loco_class?: string;
+  from_date? : string;
+  to_date?   : string;
+}
 
 export const documentService = {
-  list: (params?: Record<string, string>) =>
-    api.get(`${BASE}/documents/`, { params }).then(r => r.data),
-  get: (id: number) =>
-    api.get(`${BASE}/documents/${id}/`).then(r => r.data),
-  create: (formData: FormData) =>
-    api.post(`${BASE}/documents/`, formData, {
+  async list(filters: DocumentFilters = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<Document>>(
+      '/documents/', { params: filters }
+    );
+    return data;
+  },
+
+  async get(id: number) {
+    const { data } = await apiClient.get<Document>(`/documents/${id}/`);
+    return data;
+  },
+
+  async approve(id: number, remarks?: string) {
+    const { data } = await apiClient.post(`/documents/${id}/approve/`, { remarks });
+    return data;
+  },
+
+  async reject(id: number, remarks: string) {
+    const { data } = await apiClient.post(`/documents/${id}/reject/`, { remarks });
+    return data;
+  },
+
+  async download(id: number): Promise<Blob> {
+    const { data } = await apiClient.get(`/documents/${id}/download/`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
+
+  async search(q: string, filters: DocumentFilters = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<Document>>(
+      '/documents/search/', { params: { q, ...filters } }
+    );
+    return data;
+  },
+
+  async upload(formData: FormData) {
+    const { data } = await apiClient.post<Document>('/documents/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data),
-  update: (id: number, data: any) =>
-    api.patch(`${BASE}/documents/${id}/`, data).then(r => r.data),
-  delete: (id: number) =>
-    api.delete(`${BASE}/documents/${id}/`),
-  approve: (id: number) =>
-    api.post(`${BASE}/documents/${id}/approve/`).then(r => r.data),
-  reject: (id: number, reason: string) =>
-    api.post(`${BASE}/documents/${id}/reject/`, { reason }).then(r => r.data),
-  supersede: (id: number, newId: number) =>
-    api.post(`${BASE}/documents/${id}/supersede/`, { new_document: newId }).then(r => r.data),
-  downloadFile: (id: number) =>
-    api.get(`${BASE}/documents/${id}/download/`, { responseType: 'blob' }).then(r => r.data),
-  listVersions: (id: number) =>
-    api.get(`${BASE}/documents/${id}/versions/`).then(r => r.data),
-  listCategories: () =>
-    api.get(`${BASE}/categories/`).then(r => r.data),
-  listCorrespondents: () =>
-    api.get(`${BASE}/correspondents/`).then(r => r.data),
-  listTags: () =>
-    api.get(`${BASE}/tags/`).then(r => r.data),
-  dashboardStats: () =>
-    api.get(`${BASE}/dashboard/`).then(r => r.data),
+    });
+    return data;
+  },
 };

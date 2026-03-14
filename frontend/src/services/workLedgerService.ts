@@ -1,34 +1,77 @@
 // =============================================================================
 // FILE: frontend/src/services/workLedgerService.ts
+// CANONICAL work ledger service. workLedger.ts and workLedgerApi.ts both
+// re-export from here. Uses shared apiClient (withCredentials set globally).
 // =============================================================================
-import api from '../api/axios';
+import apiClient from './apiClient';
+import type { PaginatedResponse } from '../api/types';
 
-const BASE = '/work';
+export interface WorkLedgerEntry {
+  id          : number;
+  work_code   : string;
+  loco_no     : string;
+  work_date   : string;
+  category    : string;
+  description : string;
+  status      : 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  created_by  : string;
+  created_at  : string;
+  updated_at  : string;
+}
+
+export interface WorkLedgerFilters {
+  page?     : number;
+  page_size?: number;
+  status?   : string;
+  category? : string;
+  loco_no?  : string;
+  from_date?: string;
+  to_date?  : string;
+  search?   : string;
+}
 
 export const workLedgerService = {
-  listEntries: (params?: Record<string, string>) =>
-    api.get(`${BASE}/entries/`, { params }).then(r => r.data),
-  getEntry: (id: number) =>
-    api.get(`${BASE}/entries/${id}/`).then(r => r.data),
-  createEntry: (data: any) =>
-    api.post(`${BASE}/entries/`, data).then(r => r.data),
-  updateEntry: (id: number, data: any) =>
-    api.patch(`${BASE}/entries/${id}/`, data).then(r => r.data),
-  deleteEntry: (id: number) =>
-    api.delete(`${BASE}/entries/${id}/`),
-  submitEntry: (id: number) =>
-    api.post(`${BASE}/entries/${id}/submit/`).then(r => r.data),
-  verifyEntry: (id: number, action: 'VERIFY' | 'RETURN', remarks?: string) =>
-    api.post(`${BASE}/entries/${id}/verify/`, { action, remarks }).then(r => r.data),
-  myEntries: () =>
-    api.get(`${BASE}/entries/my-entries/`).then(r => r.data),
-  teamSummary: () =>
-    api.get(`${BASE}/entries/team-summary/`).then(r => r.data),
-  listCategories: () =>
-    api.get(`${BASE}/categories/`).then(r => r.data),
-  downloadReport: (year: number, month: number, format: 'pdf' | 'excel') =>
-    api.get(`${BASE}/report/${format === 'excel' ? 'excel/' : ''}`, {
-      params: { year, month },
+  async list(filters: WorkLedgerFilters = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<WorkLedgerEntry>>(
+      '/work-ledger/entries/', { params: filters }
+    );
+    return data;
+  },
+
+  async get(id: number) {
+    const { data } = await apiClient.get<WorkLedgerEntry>(`/work-ledger/entries/${id}/`);
+    return data;
+  },
+
+  async create(payload: Partial<WorkLedgerEntry>) {
+    const { data } = await apiClient.post<WorkLedgerEntry>('/work-ledger/entries/', payload);
+    return data;
+  },
+
+  async update(id: number, payload: Partial<WorkLedgerEntry>) {
+    const { data } = await apiClient.patch<WorkLedgerEntry>(`/work-ledger/entries/${id}/`, payload);
+    return data;
+  },
+
+  async remove(id: number) {
+    await apiClient.delete(`/work-ledger/entries/${id}/`);
+  },
+
+  async dashboard() {
+    const { data } = await apiClient.get('/work-ledger/dashboard/');
+    return data;
+  },
+
+  async report(params: Record<string, string> = {}) {
+    const { data } = await apiClient.get('/work-ledger/report/', { params });
+    return data;
+  },
+
+  async exportCsv(params: Record<string, string> = {}): Promise<Blob> {
+    const { data } = await apiClient.get('/work-ledger/export/', {
+      params,
       responseType: 'blob',
-    }).then(r => r.data),
+    });
+    return data;
+  },
 };
