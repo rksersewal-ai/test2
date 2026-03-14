@@ -1,6 +1,5 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# FIXED: 6 bugs corrected (see commit message)
 # =============================================================================
 """Base settings shared across all environments - PLW EDMS + LDO."""
 import os
@@ -22,23 +21,25 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',  # FIX #4: required for BLACKLIST_AFTER_ROTATION
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    # Internal apps (all 8 sprints registered)
+    # Internal apps
     'apps.core',
     'apps.edms',
     'apps.workflow',
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
-    'apps.notifications',     # FIX #2: Sprint 4 - was missing
-    'apps.ml_classifier',     # FIX #2: Sprint 5 - was missing
-    'apps.pdf_tools',         # FIX #2: Sprint 6 - was missing
-    'apps.sanity',            # FIX #2: Sprint 6 - was missing
-    'apps.sharelinks',        # FIX #2: Sprint 7 - was missing
-    'apps.webhooks',          # FIX #2: Sprint 7 - was missing
-    'apps.scanner',           # FIX #2: Sprint 8 - was missing
+    'apps.notifications',
+    'apps.ml_classifier',
+    'apps.pdf_tools',
+    'apps.sanity',
+    'apps.sharelinks',
+    'apps.webhooks',
+    'apps.scanner',
+    # PL Master module (PRD amendment PLW/LDO/PRD/2026/001 v1.0)
+    'apps.pl_master',
 ]
 
 MIDDLEWARE = [
@@ -107,7 +108,6 @@ USE_TZ        = True
 
 STATIC_URL  = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# FIX #1: was STATICFFILES_STORAGE (double-F typo)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL  = '/media/'
@@ -139,7 +139,6 @@ REST_FRAMEWORK = {
 }
 
 # JWT
-# FIX #4: token_blacklist app added to INSTALLED_APPS above
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -165,8 +164,8 @@ OCR_MAX_RETRIES    = 3
 # LAN Security
 ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
 
-# FIX #3: Celery broker + backend settings (required for Celery to discover broker from settings)
-CELERY_BROKER_URL        = config('CELERY_BROKER_URL',   default='redis://localhost:6379/0')
+# Celery
+CELERY_BROKER_URL        = config('CELERY_BROKER_URL',    default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND    = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT    = ['json']
 CELERY_TASK_SERIALIZER   = 'json'

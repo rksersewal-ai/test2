@@ -1,0 +1,132 @@
+[
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 1,
+    "fields": {
+      "agency_code": "CLW",
+      "agency_name": "Chittaranjan Locomotive Works",
+      "agency_type": "Production Unit",
+      "contact_email": "cee.clw@indianrailways.gov.in",
+      "contact_phone": "",
+      "address": "Chittaranjan, West Bengal - 713331",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 2,
+    "fields": {
+      "agency_code": "BLW",
+      "agency_name": "Banaras Locomotive Works",
+      "agency_type": "Production Unit",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Varanasi, Uttar Pradesh - 221004",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 3,
+    "fields": {
+      "agency_code": "RDSO",
+      "agency_name": "Research Designs & Standards Organisation",
+      "agency_type": "Design Office",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Manak Nagar, Lucknow, Uttar Pradesh - 226011",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 4,
+    "fields": {
+      "agency_code": "ICF",
+      "agency_name": "Integral Coach Factory",
+      "agency_type": "Production Unit",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Perambur, Chennai, Tamil Nadu - 600038",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 5,
+    "fields": {
+      "agency_code": "PLW",
+      "agency_name": "Patiala Locomotive Works",
+      "agency_type": "Production Unit",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Patiala, Punjab - 147001",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 6,
+    "fields": {
+      "agency_code": "ABB",
+      "agency_name": "ABB India Limited",
+      "agency_type": "OEM",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Bangalore, Karnataka",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 7,
+    "fields": {
+      "agency_code": "SIEMENS",
+      "agency_name": "Siemens India Limited",
+      "agency_type": "OEM",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Mumbai, Maharashtra",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 8,
+    "fields": {
+      "agency_code": "BHEL",
+      "agency_name": "Bharat Heavy Electricals Limited",
+      "agency_type": "OEM",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Haridwar, Uttarakhand",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 9,
+    "fields": {
+      "agency_code": "MEDHA",
+      "agency_name": "Medha Servo Drives Pvt. Ltd.",
+      "agency_type": "OEM",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Hyderabad, Telangana",
+      "is_active": true
+    }
+  },
+  {
+    "model": "pl_master.controllingagency",
+    "pk": 10,
+    "fields": {
+      "agency_code": "MELCO",
+      "agency_name": "Mitsubishi Electric Corporation",
+      "agency_type": "OEM",
+      "contact_email": "",
+      "contact_phone": "",
+      "address": "Japan / India Office",
+      "is_active": true
+    }
+  }
+]
