@@ -1,5 +1,12 @@
 # =============================================================================
 # FILE: config/urls.py
+# BUG FIX 1: Added missing /api/v1/config/   → config_mgmt.urls
+#            Added missing /api/v1/prototype/ → prototype.urls
+#            Both apps existed in backend/ but were never wired into URL routing
+#            causing every Config Management and Prototype Inspection API call
+#            to return HTTP 404.
+# BUG FIX 2: Work Ledger prefix changed from 'work/' → 'work-ledger/' to match
+#            what workLedgerService.ts calls (BASE = '/work-ledger').
 # =============================================================================
 from django.contrib import admin
 from django.urls    import path, include
@@ -14,12 +21,12 @@ API_V1 = 'api/v1/'
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # JWT auth
+    # ---- JWT auth -------------------------------------------------------
     path(API_V1 + 'auth/token/',         TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(),   name='token_refresh'),
     path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),    name='token_verify'),
 
-    # App APIs
+    # ---- Core apps (inside apps/ package) ------------------------------
     path(API_V1 + 'core/',       include('apps.core.urls')),
     path(API_V1 + 'edms/',       include('apps.edms.urls')),
     path(API_V1 + 'workflow/',   include('apps.workflow.urls')),
@@ -33,12 +40,20 @@ urlpatterns = [
     path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
     path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
     path(API_V1 + 'pl-master/',  include('apps.pl_master.urls')),
-    path(API_V1 + 'work/',       include('apps.work_ledger.urls')),
-
-    # Shop Drawing Request module
     path(API_V1 + 'sdr/',        include('apps.sdr.urls')),
 
-    # Sprint 7: public share-link routes
+    # ---- Work Ledger module --------------------------------------------
+    # BUG FIX 2: prefix was 'work/' but frontend calls /api/v1/work-ledger/
+    path(API_V1 + 'work-ledger/', include('apps.work_ledger.urls')),
+
+    # ---- Backend standalone apps (backend/ package, NOT apps/) ---------
+    # BUG FIX 1a: config_mgmt was MISSING — caused 404 on all /api/v1/config/ calls
+    path(API_V1 + 'config/',     include('config_mgmt.urls')),
+
+    # BUG FIX 1b: prototype was MISSING — caused 404 on all /api/v1/prototype/ calls
+    path(API_V1 + 'prototype/',  include('prototype.urls')),
+
+    # ---- Sprint 7: public share-link routes ----------------------------
     path('s/', include(('apps.sharelinks.urls', 'sharelinks'), namespace='sharelinks-public')),
 ]
 
