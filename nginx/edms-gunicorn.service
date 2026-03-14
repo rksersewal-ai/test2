@@ -1,0 +1,21 @@
+[Unit]
+Description=EDMS-LDO Gunicorn Daemon
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=edms
+Group=edms
+WorkingDirectory=/opt/edms/backend
+ExecStart=/opt/edms/backend/venv/bin/gunicorn edms.wsgi:application \
+          --bind 127.0.0.1:8765 \
+          --workers 3 \
+          --timeout 120 \
+          --access-logfile /opt/edms/logs/access.log \
+          --error-logfile  /opt/edms/logs/error.log
+Restart=on-failure
+RestartSec=5s
+EnvironmentFile=/opt/edms/backend/.env
+
+[Install]
+WantedBy=multi-user.target
