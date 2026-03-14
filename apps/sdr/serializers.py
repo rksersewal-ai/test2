@@ -2,79 +2,91 @@
 # FILE: apps/sdr/serializers.py
 # =============================================================================
 from rest_framework import serializers
-from django.utils   import timezone
-
-from .models import SDRRequest, SDRResponse, SDRAttachment
+from .models import SDRRecord, SDRItem
 
 
-class SDRAttachmentSerializer(serializers.ModelSerializer):
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
-
+class SDRItemSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = SDRAttachment
+        model  = SDRItem
         fields = [
-            'id', 'attached_to_type', 'sdr_request', 'sdr_response',
-            'uploaded_by', 'uploaded_by_name',
-            'file', 'file_name', 'file_size', 'description', 'uploaded_at',
-        ]
-        read_only_fields = ['uploaded_at', 'uploaded_by']
-
-
-class SDRResponseSerializer(serializers.ModelSerializer):
-    responded_by_name = serializers.CharField(source='responded_by.get_full_name', read_only=True)
-    attachments       = SDRAttachmentSerializer(many=True, read_only=True)
-
-    class Meta:
-        model  = SDRResponse
-        fields = [
-            'id', 'sdr_request', 'response_type',
-            'responded_by', 'responded_by_name',
-            'technical_response', 'clarified_drawing', 'clarified_alteration',
-            'dimension_reference', 'action_required',
-            'linked_smi', 'deviation_permitted', 'concession_reference',
-            'eoffice_file_no',
-            'attachments', 'responded_at', 'updated_at',
-        ]
-        read_only_fields = ['responded_at', 'updated_at', 'responded_by']
-
-
-class SDRRequestListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list view."""
-    raised_by_name  = serializers.CharField(source='raised_by.get_full_name', read_only=True)
-    assigned_to_name= serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    response_count  = serializers.SerializerMethodField()
-
-    class Meta:
-        model  = SDRRequest
-        fields = [
-            'id', 'sdr_number', 'subject', 'clarification_type',
-            'drawing_number', 'pl_number', 'loco_type', 'loco_number',
-            'urgency', 'status', 'production_hold',
-            'raised_by', 'raised_by_name',
-            'assigned_to', 'assigned_to_name',
-            'required_by_date', 'target_response_date',
-            'response_count', 'created_at',
+            'id',
+            'document_type',
+            'drawing',
+            'specification',
+            'document_number',
+            'document_title',
+            'alteration_no',
+            'size',
+            'copies',
+            'controlled_copy',
         ]
 
-    def get_response_count(self, obj):
-        return obj.responses.count()
+    def validate(self, data):
+        doc_type = data.get('document_type', 'DRAWING')
+        if doc_type == 'DRAWING' and not data.get('drawing'):
+            raise serializers.ValidationError('drawing is required when document_type is DRAWING.')
+        if doc_type == 'SPEC' and not data.get('specification'):
+            raise serializers.ValidationError('specification is required when document_type is SPEC.')
+        return data
 
 
-class SDRRequestDetailSerializer(serializers.ModelSerializer):
-    """Full serializer for detail / create view."""
-    raised_by_name   = serializers.CharField(source='raised_by.get_full_name', read_only=True)
-    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    assigned_by_name = serializers.CharField(source='assigned_by.get_full_name', read_only=True)
-    closed_by_name   = serializers.CharField(source='closed_by.get_full_name', read_only=True)
-    responses        = SDRResponseSerializer(many=True, read_only=True)
-    attachments      = SDRAttachmentSerializer(many=True, read_only=True)
+class SDRRecordSerializer(serializers.ModelSerializer):
+    items = SDRItemSerializer(many=True)
+
+    # Read-only computed
+    total_items        = serializers.ReadOnlyField()
+    has_controlled_copy = serializers.ReadOnlyField()
 
     class Meta:
-        model  = SDRRequest
-        fields = '__all__'
-        read_only_fields = [
-            'sdr_number', 'raised_by', 'status',
-            'assigned_by', 'assigned_at',
-            'closed_by', 'closed_at',
-            'created_at', 'updated_at',
+        model  = SDRRecord
+        fields = [
+            'id',
+            'sdr_number',
+            'issue_date',
+            'shop_name',
+            'requesting_official',
+            'issuing_official',
+            'receiving_official',
+            'remarks',
+            'items',
+            'total_items',
+            'has_controlled_copy',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['sdr_number', 'created_by', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        record = SDRRecord.objects.create(**validated_data)
+        for item_data in items_data:
+            SDRItem.objects.create(sdr_record=record, **item_data)
+        return record
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        instance.save()
+        if items_data is not None:
+            instance.items.all().delete()
+            for item_data in items_data:
+                SDRItem.objects.create(sdr_record=instance, **item_data)
+        return instance
+
+
+class SDRRecordListSerializer(serializers.ModelSerializer):
+    """Lightweight list serializer — no nested items."""
+    total_items         = serializers.ReadOnlyField()
+    has_controlled_copy = serializers.ReadOnlyField()
+
+    class Meta:
+        model  = SDRRecord
+        fields = [
+            'id', 'sdr_number', 'issue_date',
+            'shop_name', 'requesting_official',
+            'issuing_official', 'receiving_official',
+            'total_items', 'has_controlled_copy',
+            'created_at',
         ]

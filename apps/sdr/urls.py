@@ -1,18 +1,13 @@
 # =============================================================================
-# FILE: apps/sdr/urls.py  (updated — added analytics/ endpoint)
+# FILE: apps/sdr/urls.py
 # =============================================================================
 from django.urls            import path
 from rest_framework.routers import DefaultRouter
-from .views import (
-    SDRRequestViewSet, SDRResponseViewSet,
-    SDRAttachmentViewSet, SDRAnalyticsView,
-)
+from .views import SDRRecordViewSet, DrawingSpecSearchView
 
 router = DefaultRouter()
-router.register(r'requests',    SDRRequestViewSet,    basename='sdr-request')
-router.register(r'responses',   SDRResponseViewSet,   basename='sdr-response')
-router.register(r'attachments', SDRAttachmentViewSet, basename='sdr-attachment')
+router.register(r'', SDRRecordViewSet, basename='sdr')
 
 urlpatterns = [
-    path('analytics/', SDRAnalyticsView.as_view(), name='sdr-analytics'),
+    path('search/', DrawingSpecSearchView.as_view(), name='sdr-doc-search'),
 ] + router.urls

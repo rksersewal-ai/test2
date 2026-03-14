@@ -1,160 +1,81 @@
 # =============================================================================
 # FILE: apps/sdr/models.py
 #
-# Shop Drawing Request (SDR) lifecycle models
+# SDR = Shop Drawing / Specification Issue Register
 #
-# WORKFLOW:
-#   DRAFT → SUBMITTED → ASSIGNED → IN_PROGRESS → RESPONDED → CLOSED
-#                          └→ REJECTED (invalid/duplicate)
-#                          └→ ESCALATED (overdue / shop re-raises)
+# Purpose:
+#   Record every issue of a drawing or specification print to a shop.
+#   No approval workflow. Pure register / ledger.
+#
+# Two tables:
+#   SDRRecord  — one record per issue transaction (one shop, one day, one request)
+#   SDRItem    — one row per drawing/spec issued in that transaction
 # =============================================================================
 from django.db   import models
 from django.conf import settings
 
 
-# ---------------------------------------------------------------------------
-SDR_STATUS = [
-    ('DRAFT',       'Draft'),
-    ('SUBMITTED',   'Submitted'),
-    ('ASSIGNED',    'Assigned'),
-    ('IN_PROGRESS', 'In Progress'),
-    ('RESPONDED',   'Responded'),
-    ('ESCALATED',   'Escalated'),
-    ('CLOSED',      'Closed'),
-    ('REJECTED',    'Rejected'),
+DRAWING_SIZES = [
+    ('A0', 'A0'),
+    ('A1', 'A1'),
+    ('A2', 'A2'),
+    ('A3', 'A3'),
+    ('A4', 'A4'),
 ]
 
-SHOP_SECTION = [
-    ('MECH', 'Mechanical Shop'),
-    ('ELEC', 'Electrical Shop'),
-    ('BOGIE','Bogie Shop'),
-    ('PAINT','Paint Shop'),
-    ('WELDING','Welding Shop'),
-    ('MACHINING','Machining Shop'),
-    ('ASSEMBLY','Assembly Shop'),
-    ('QC',  'Quality Control'),
-    ('STORE','Stores Section'),
-    ('OTHER','Other'),
-]
-
-URGENCY = [
-    ('ROUTINE',   'Routine'),
-    ('URGENT',    'Urgent'),
-    ('CRITICAL',  'Critical / Production Hold'),
-]
-
-CLARIFICATION_TYPE = [
-    ('DRG_COPY',      'Drawing Copy Required'),
-    ('DRG_CLARITY',   'Drawing Clarity Issue'),
-    ('DIM_QUERY',     'Dimensional Query'),
-    ('MAT_QUERY',     'Material / Specification Query'),
-    ('FIT_ISSUE',     'Fitment / Assembly Issue'),
-    ('DEVIATION',     'Deviation Request'),
-    ('CONCESSION',    'Concession Request'),
-    ('ALT_INFO',      'Alteration Information'),
-    ('SMI_INFO',      'SMI Clarification'),
-    ('OTHER',         'Other'),
+DOC_TYPE_CHOICES = [
+    ('DRAWING', 'Drawing'),
+    ('SPEC',    'Specification'),
 ]
 
 
-# ===========================================================================
-class SDRRequest(models.Model):
+class SDRRecord(models.Model):
     """
-    Core SDR record raised by a shop user.
+    Header: one issue transaction.
     """
-    # Auto SDR number: SDR/YYYY-YY/NNNNN
-    sdr_number          = models.CharField(max_length=30, unique=True, blank=True)
+    # Auto-generated register number: SDR/2026-27/00001
+    sdr_number = models.CharField(max_length=30, unique=True, editable=False)
 
-    # Raised-by
-    raised_by           = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name='sdr_raised', verbose_name='Raised By'
-    )
-    raising_section     = models.CharField(max_length=20, choices=SHOP_SECTION, default='MECH')
-    loco_number         = models.CharField(max_length=30, blank=True, help_text='Loco no. under work')
-    loco_type           = models.CharField(max_length=20, blank=True, help_text='WAG9/WAP7/etc')
+    issue_date          = models.DateField()
+    shop_name           = models.CharField(max_length=120)
+    requesting_official = models.CharField(max_length=120, help_text='Name of official requesting the prints')
+    issuing_official    = models.CharField(max_length=120, help_text='Name of LDO staff issuing the prints')
+    receiving_official  = models.CharField(max_length=120, help_text='Name of official who physically received the prints')
 
-    # Drawing / PL reference
-    drawing_number      = models.CharField(max_length=100, blank=True)
-    pl_number           = models.CharField(max_length=50,  blank=True)
-    sub_assembly        = models.CharField(max_length=200, blank=True)
+    remarks = models.TextField(blank=True)
 
-    # Query
-    clarification_type  = models.CharField(max_length=30, choices=CLARIFICATION_TYPE, default='OTHER')
-    subject             = models.CharField(max_length=500)
-    query_description   = models.TextField()
-    urgency             = models.CharField(max_length=20, choices=URGENCY, default='ROUTINE')
-
-    # Scheduling
-    required_by_date    = models.DateField(null=True, blank=True)
-    production_hold     = models.BooleanField(default=False, help_text='Production line stopped?')
-
-    # Workflow
-    status              = models.CharField(max_length=20, choices=SDR_STATUS, default='DRAFT')
-    assigned_to         = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='sdr_assigned'
-    )
-    assigned_by         = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='sdr_assigned_by'
-    )
-    assigned_at         = models.DateTimeField(null=True, blank=True)
-    target_response_date= models.DateField(null=True, blank=True)
-
-    # Resolution
-    is_duplicate        = models.BooleanField(default=False)
-    duplicate_of        = models.ForeignKey(
-        'self', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='duplicates'
-    )
-    rejection_reason    = models.TextField(blank=True)
-
-    # Close
-    closed_by           = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='sdr_closed'
-    )
-    closed_at           = models.DateTimeField(null=True, blank=True)
-    closure_remarks     = models.TextField(blank=True)
-    shop_satisfaction   = models.PositiveSmallIntegerField(
+    # Audit
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
         null=True, blank=True,
-        help_text='Shop satisfaction rating 1-5'
+        related_name='sdr_records_created',
     )
-
-    # Timestamps
-    created_at          = models.DateTimeField(auto_now_add=True)
-    updated_at          = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'sdr_request'
-        ordering = ['-created_at']
-        indexes  = [
-            models.Index(fields=['sdr_number']),
-            models.Index(fields=['status']),
-            models.Index(fields=['drawing_number']),
-            models.Index(fields=['pl_number']),
-            models.Index(fields=['assigned_to', 'status']),
-        ]
+        ordering     = ['-issue_date', '-created_at']
+        verbose_name = 'SDR Record'
+        verbose_name_plural = 'SDR Records'
 
     def __str__(self):
-        return f'{self.sdr_number} — {self.subject[:60]}'
+        return f'{self.sdr_number} | {self.shop_name} | {self.issue_date}'
 
     def save(self, *args, **kwargs):
         if not self.sdr_number:
             self.sdr_number = self._generate_sdr_number()
         super().save(*args, **kwargs)
 
-    @classmethod
-    def _generate_sdr_number(cls):
+    @staticmethod
+    def _generate_sdr_number():
         from django.utils import timezone
-        now   = timezone.now()
-        year  = now.year
-        yr2   = str(year)[-2:]
-        yr2n  = str(year + 1)[-2:]
-        prefix = f'SDR/{year}-{yr2n}'
-        last  = (
-            cls.objects
+        today     = timezone.localdate()
+        fy_start  = today.year if today.month >= 4 else today.year - 1
+        fy_label  = f'{fy_start}-{str(fy_start + 1)[2:]}'
+        prefix    = f'SDR/{fy_label}/'
+        last = (
+            SDRRecord.objects
             .filter(sdr_number__startswith=prefix)
             .order_by('-sdr_number')
             .first()
@@ -164,87 +85,74 @@ class SDRRequest(models.Model):
             try:
                 seq = int(last.sdr_number.split('/')[-1]) + 1
             except (ValueError, IndexError):
-                seq = cls.objects.filter(sdr_number__startswith=prefix).count() + 1
-        return f'{prefix}/{seq:05d}'
+                pass
+        return f'{prefix}{seq:05d}'
+
+    # Convenience
+    @property
+    def total_items(self):
+        return self.items.count()
+
+    @property
+    def has_controlled_copy(self):
+        return self.items.filter(controlled_copy=True).exists()
 
 
-# ===========================================================================
-class SDRResponse(models.Model):
+class SDRItem(models.Model):
     """
-    LDO technical response to an SDR (can be multiple interim + final).
+    Line item: one drawing or specification per row.
     """
-    RESPONSE_TYPE = [
-        ('INTERIM', 'Interim / Partial Response'),
-        ('FINAL',   'Final Response'),
-    ]
-
-    sdr_request     = models.ForeignKey(
-        SDRRequest, on_delete=models.CASCADE, related_name='responses'
-    )
-    response_type   = models.CharField(max_length=10, choices=RESPONSE_TYPE, default='FINAL')
-    responded_by    = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name='sdr_responses'
+    sdr_record = models.ForeignKey(
+        SDRRecord,
+        on_delete=models.CASCADE,
+        related_name='items',
     )
 
-    # Response content
-    technical_response  = models.TextField()
-    clarified_drawing   = models.CharField(max_length=100, blank=True)
-    clarified_alteration= models.CharField(max_length=20,  blank=True)
-    dimension_reference = models.TextField(blank=True, help_text='Relevant dimensions / table ref')
-    action_required     = models.TextField(blank=True, help_text='Any action required by shop')
+    # Document type + FK search
+    document_type   = models.CharField(max_length=10, choices=DOC_TYPE_CHOICES, default='DRAWING')
 
-    # Linked SMI / deviation
-    linked_smi          = models.CharField(max_length=100, blank=True)
-    deviation_permitted = models.BooleanField(default=False)
-    concession_reference= models.CharField(max_length=100, blank=True)
+    # Resolved FKs (set when user picks from search)
+    drawing         = models.ForeignKey(
+        'pl_master.DrawingMaster',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='sdr_issues',
+    )
+    specification   = models.ForeignKey(
+        'pl_master.SpecificationMaster',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='sdr_issues',
+    )
 
-    # e-Office reference
-    eoffice_file_no     = models.CharField(max_length=100, blank=True)
+    # Denormalised display fields (populated from FK on save)
+    document_number = models.CharField(max_length=80)   # e.g. CLW/M/WAP7-1234
+    document_title  = models.CharField(max_length=255, blank=True)
+    alteration_no   = models.CharField(max_length=20,  blank=True, help_text='Current alteration at time of issue')
 
-    responded_at        = models.DateTimeField(auto_now_add=True)
-    updated_at          = models.DateTimeField(auto_now=True)
+    # Issue details
+    size            = models.CharField(max_length=4, choices=DRAWING_SIZES, default='A1')
+    copies          = models.PositiveSmallIntegerField(default=1)
+    controlled_copy = models.BooleanField(
+        default=False,
+        help_text='Tick if this is a Controlled Copy (stamp applied)'
+    )
 
     class Meta:
-        db_table = 'sdr_response'
-        ordering = ['responded_at']
+        ordering     = ['id']
+        verbose_name = 'SDR Item'
 
     def __str__(self):
-        return f'Response to {self.sdr_request.sdr_number} ({self.response_type})'
+        return f'{self.document_number} | {self.size} x{self.copies}'
 
-
-# ===========================================================================
-class SDRAttachment(models.Model):
-    """
-    Supporting file attached to an SDR request or response.
-    """
-    ATTACHED_TO = [
-        ('REQUEST',  'SDR Request'),
-        ('RESPONSE', 'SDR Response'),
-    ]
-
-    attached_to_type= models.CharField(max_length=10, choices=ATTACHED_TO)
-    sdr_request     = models.ForeignKey(
-        SDRRequest, on_delete=models.CASCADE, related_name='attachments'
-    )
-    sdr_response    = models.ForeignKey(
-        SDRResponse, on_delete=models.CASCADE,
-        null=True, blank=True, related_name='attachments'
-    )
-    uploaded_by     = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name='sdr_attachments'
-    )
-
-    file            = models.FileField(upload_to='sdr/%Y/%m/')
-    file_name       = models.CharField(max_length=200)
-    file_size       = models.BigIntegerField()
-    description     = models.CharField(max_length=300, blank=True)
-
-    uploaded_at     = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'sdr_attachment'
-
-    def __str__(self):
-        return f'{self.file_name} → {self.sdr_request.sdr_number}'
+    def save(self, *args, **kwargs):
+        # Auto-populate denormalised fields from FK
+        if self.drawing and self.document_type == 'DRAWING':
+            self.document_number = self.drawing.drawing_number
+            self.document_title  = self.drawing.drawing_title or ''
+            self.alteration_no   = self.drawing.current_alteration or ''
+        elif self.specification and self.document_type == 'SPEC':
+            self.document_number = self.specification.spec_number
+            self.document_title  = self.specification.spec_title or ''
+            self.alteration_no   = self.specification.current_alteration or ''
+        super().save(*args, **kwargs)
