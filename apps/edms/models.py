@@ -1,22 +1,19 @@
 # =============================================================================
 # FILE: apps/edms/models.py
-# SPRINT 1 additions:
-#   - CustomFieldDefinition  (Feature #9)
-#   - DocumentCustomField    (Feature #9)
-#   - Correspondent          (Feature #14)
-#   - DocumentCorrespondentLink (Feature #14)
-#   - DocumentNote           (Feature #12)
-# All previous models (Category, DocumentType, Document, Revision,
-# FileAttachment) preserved unchanged from the security fix commit.
+# FIX #11: Corrected db_table naming for Correspondent and
+#          DocumentCorrespondentLink and DocumentNote to use
+#          consistent 'edms_' prefix, matching all other EDMS models.
+#          Previous: 'correspondent', 'document_correspondent_link',
+#                    'document_note' (missing edms_ prefix)
+#          Fixed:    'edms_correspondent', 'edms_document_correspondent_link',
+#                    'edms_document_note'
+# NOTE: If you have already run SQL migrations with old table names,
+#       run: sql/FIX_011_rename_tables.sql before applying Django migrations.
 # =============================================================================
 from django.db import models
 from django.conf import settings
 import os
 
-
-# ---------------------------------------------------------------------------
-# Existing models (unchanged)
-# ---------------------------------------------------------------------------
 
 class Category(models.Model):
     code        = models.CharField(max_length=20, unique=True)
@@ -64,13 +61,15 @@ class Document(models.Model):
                                             on_delete=models.SET_NULL, related_name='documents')
     section             = models.ForeignKey('core.Section', null=True, blank=True,
                                             on_delete=models.SET_NULL, related_name='documents')
-    status              = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    status              = models.CharField(max_length=20, choices=Status.choices,
+                                           default=Status.ACTIVE)
     source_standard     = models.CharField(max_length=100, blank=True)
     eoffice_file_number = models.CharField(max_length=100, blank=True, db_index=True)
     eoffice_subject     = models.CharField(max_length=300, blank=True)
     keywords            = models.TextField(blank=True)
     created_by          = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
-                                            on_delete=models.SET_NULL, related_name='documents_created')
+                                            on_delete=models.SET_NULL,
+                                            related_name='documents_created')
     created_at          = models.DateTimeField(auto_now_add=True)
     updated_at          = models.DateTimeField(auto_now=True)
 
@@ -88,10 +87,12 @@ class Revision(models.Model):
         SUPERSEDED = 'SUPERSEDED', 'Superseded'
         DRAFT      = 'DRAFT',      'Draft'
 
-    document           = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='revisions')
+    document           = models.ForeignKey(Document, on_delete=models.CASCADE,
+                                           related_name='revisions')
     revision_number    = models.CharField(max_length=20)
     revision_date      = models.DateField(null=True, blank=True)
-    status             = models.CharField(max_length=20, choices=Status.choices, default=Status.CURRENT)
+    status             = models.CharField(max_length=20, choices=Status.choices,
+                                          default=Status.CURRENT)
     change_description = models.TextField(blank=True)
     prepared_by        = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -101,13 +102,13 @@ class Revision(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='revisions_approved'
     )
-    eoffice_ref        = models.CharField(max_length=100, blank=True)
-    created_by         = models.ForeignKey(
+    eoffice_ref = models.CharField(max_length=100, blank=True)
+    created_by  = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True,
         on_delete=models.SET_NULL, related_name='revisions_created'
     )
-    created_at         = models.DateTimeField(auto_now_add=True)
-    updated_at         = models.DateTimeField(auto_now=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table        = 'edms_revision'
@@ -134,7 +135,8 @@ class FileAttachment(models.Model):
     file_name       = models.CharField(max_length=255)
     file_path       = models.FileField(upload_to=upload_to, max_length=500)
     file_size_bytes = models.BigIntegerField(null=True, blank=True)
-    file_type       = models.CharField(max_length=10, choices=FileType.choices, default=FileType.PDF)
+    file_type       = models.CharField(max_length=10, choices=FileType.choices,
+                                       default=FileType.PDF)
     page_count      = models.IntegerField(null=True, blank=True)
     checksum_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
     is_primary      = models.BooleanField(default=False)
@@ -142,7 +144,7 @@ class FileAttachment(models.Model):
         settings.AUTH_USER_MODEL, null=True,
         on_delete=models.SET_NULL, related_name='files_uploaded'
     )
-    uploaded_at     = models.DateTimeField(auto_now_add=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'edms_file_attachment'
@@ -157,9 +159,6 @@ class FileAttachment(models.Model):
 # ---------------------------------------------------------------------------
 
 class CustomFieldDefinition(models.Model):
-    """Admin-defined metadata fields per DocumentType.
-    E.g. DocumentType=Specification → fields: Clause No, Issue Authority, Applicable Loco.
-    """
     class FieldType(models.TextChoices):
         TEXT    = 'text',    'Text'
         NUMBER  = 'number',  'Number'
@@ -167,20 +166,17 @@ class CustomFieldDefinition(models.Model):
         SELECT  = 'select',  'Select (dropdown)'
         BOOLEAN = 'boolean', 'Yes / No'
 
-    document_type   = models.ForeignKey(DocumentType, on_delete=models.CASCADE,
-                                        related_name='custom_field_definitions')
-    field_name      = models.CharField(max_length=80,
-                                       help_text='Internal key, snake_case. E.g. clause_number')
-    field_label     = models.CharField(max_length=200,
-                                       help_text='Display label shown to users. E.g. Clause Number')
-    field_type      = models.CharField(max_length=20, choices=FieldType.choices,
-                                       default=FieldType.TEXT)
-    select_options  = models.TextField(blank=True,
-                                       help_text='Comma-separated options when field_type=select')
-    is_required     = models.BooleanField(default=False)
-    sort_order      = models.IntegerField(default=0)
-    is_active       = models.BooleanField(default=True)
-    created_at      = models.DateTimeField(auto_now_add=True)
+    document_type  = models.ForeignKey(DocumentType, on_delete=models.CASCADE,
+                                       related_name='custom_field_definitions')
+    field_name     = models.CharField(max_length=80)
+    field_label    = models.CharField(max_length=200)
+    field_type     = models.CharField(max_length=20, choices=FieldType.choices,
+                                      default=FieldType.TEXT)
+    select_options = models.TextField(blank=True)
+    is_required    = models.BooleanField(default=False)
+    sort_order     = models.IntegerField(default=0)
+    is_active      = models.BooleanField(default=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table        = 'edms_custom_field_definition'
@@ -197,14 +193,14 @@ class CustomFieldDefinition(models.Model):
 
 
 class DocumentCustomField(models.Model):
-    """Per-document instance values for admin-defined custom fields."""
     document    = models.ForeignKey(Document, on_delete=models.CASCADE,
                                     related_name='custom_fields')
     definition  = models.ForeignKey(CustomFieldDefinition, on_delete=models.RESTRICT,
                                     related_name='values')
     field_value = models.TextField(blank=True, null=True)
     updated_by  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.SET_NULL, related_name='custom_fields_updated')
+                                    on_delete=models.SET_NULL,
+                                    related_name='custom_fields_updated')
     updated_at  = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -221,7 +217,6 @@ class DocumentCustomField(models.Model):
 # ---------------------------------------------------------------------------
 
 class Correspondent(models.Model):
-    """Master list of organisations — RDSO, CLW, BLW, Zonal Railways, vendors."""
     class OrgType(models.TextChoices):
         RDSO       = 'RDSO',       'RDSO'
         CLW        = 'CLW',        'CLW'
@@ -233,18 +228,19 @@ class Correspondent(models.Model):
         CONTRACTOR = 'CONTRACTOR', 'Contractor'
         OTHER      = 'OTHER',      'Other'
 
-    name        = models.CharField(max_length=300)
-    short_code  = models.CharField(max_length=30, unique=True)
-    org_type    = models.CharField(max_length=20, choices=OrgType.choices, default=OrgType.OTHER)
-    address     = models.TextField(blank=True)
-    email       = models.EmailField(blank=True)
-    is_active   = models.BooleanField(default=True)
-    created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.SET_NULL, related_name='correspondents_created')
-    created_at  = models.DateTimeField(auto_now_add=True)
+    name       = models.CharField(max_length=300)
+    short_code = models.CharField(max_length=30, unique=True)
+    org_type   = models.CharField(max_length=20, choices=OrgType.choices, default=OrgType.OTHER)
+    address    = models.TextField(blank=True)
+    email      = models.EmailField(blank=True)
+    is_active  = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name='correspondents_created')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'correspondent'
+        # FIX #11: was 'correspondent' (missing edms_ prefix)
+        db_table = 'edms_correspondent'
         ordering = ['name']
 
     def __str__(self):
@@ -252,35 +248,37 @@ class Correspondent(models.Model):
 
 
 class DocumentCorrespondentLink(models.Model):
-    """Links a document to one or more correspondent organisations."""
     class LinkType(models.TextChoices):
-        ISSUED_BY   = 'ISSUED_BY',   'Issued By'
+        ISSUED_BY    = 'ISSUED_BY',    'Issued By'
         ADDRESSED_TO = 'ADDRESSED_TO', 'Addressed To'
-        CC          = 'CC',          'CC'
-        APPROVED_BY = 'APPROVED_BY', 'Approved By'
-        CONSULTED   = 'CONSULTED',   'Consulted'
+        CC           = 'CC',           'CC'
+        APPROVED_BY  = 'APPROVED_BY',  'Approved By'
+        CONSULTED    = 'CONSULTED',    'Consulted'
 
     document         = models.ForeignKey(Document, on_delete=models.CASCADE,
                                          related_name='correspondent_links')
     correspondent    = models.ForeignKey(Correspondent, on_delete=models.RESTRICT,
                                          related_name='document_links')
-    reference_number = models.CharField(max_length=200, blank=True,
-                                        help_text='e.g. RDSO/2024/EL/0047')
+    reference_number = models.CharField(max_length=200, blank=True)
     reference_date   = models.DateField(null=True, blank=True)
     link_type        = models.CharField(max_length=20, choices=LinkType.choices,
                                         default=LinkType.ISSUED_BY)
-    remarks          = models.TextField(blank=True)
-    created_by       = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                         on_delete=models.SET_NULL,
-                                         related_name='correspondent_links_created')
-    created_at       = models.DateTimeField(auto_now_add=True)
+    remarks    = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL,
+                                   related_name='correspondent_links_created')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'document_correspondent_link'
+        # FIX #11: was 'document_correspondent_link'
+        db_table = 'edms_document_correspondent_link'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.document.document_number} ← {self.correspondent.short_code} ({self.link_type})"
+        return (
+            f"{self.document.document_number} ← "
+            f"{self.correspondent.short_code} ({self.link_type})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -288,10 +286,6 @@ class DocumentCorrespondentLink(models.Model):
 # ---------------------------------------------------------------------------
 
 class DocumentNote(models.Model):
-    """Append-only review comments and observations per document/revision.
-    DELETE is intentionally blocked at DB level (see sql/009_document_notes.sql).
-    Resolved notes retain full history including who resolved them.
-    """
     class NoteType(models.TextChoices):
         REVIEW          = 'REVIEW',          'Review Comment'
         QUERY           = 'QUERY',           'Query'
@@ -302,8 +296,7 @@ class DocumentNote(models.Model):
     document        = models.ForeignKey(Document, on_delete=models.CASCADE,
                                         related_name='notes')
     revision        = models.ForeignKey(Revision, null=True, blank=True,
-                                        on_delete=models.SET_NULL, related_name='notes',
-                                        help_text='Pin to a specific revision, or leave blank for document-level note')
+                                        on_delete=models.SET_NULL, related_name='notes')
     note_type       = models.CharField(max_length=20, choices=NoteType.choices,
                                        default=NoteType.OBSERVATION)
     note_text       = models.TextField()
@@ -318,7 +311,8 @@ class DocumentNote(models.Model):
     updated_at      = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'document_note'
+        # FIX #11: was 'document_note'
+        db_table = 'edms_document_note'
         ordering = ['-created_at']
 
     def __str__(self):

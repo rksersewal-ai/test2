@@ -1,3 +1,7 @@
+# =============================================================================
+# FILE: config/settings/base.py
+# FIXED: 6 bugs corrected (see commit message)
+# =============================================================================
 """Base settings shared across all environments - PLW EDMS + LDO."""
 import os
 from pathlib import Path
@@ -18,15 +22,23 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # FIX #4: required for BLACKLIST_AFTER_ROTATION
     'corsheaders',
     'django_filters',
-    # Internal apps
+    # Internal apps (all 8 sprints registered)
     'apps.core',
     'apps.edms',
     'apps.workflow',
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
+    'apps.notifications',     # FIX #2: Sprint 4 - was missing
+    'apps.ml_classifier',     # FIX #2: Sprint 5 - was missing
+    'apps.pdf_tools',         # FIX #2: Sprint 6 - was missing
+    'apps.sanity',            # FIX #2: Sprint 6 - was missing
+    'apps.sharelinks',        # FIX #2: Sprint 7 - was missing
+    'apps.webhooks',          # FIX #2: Sprint 7 - was missing
+    'apps.scanner',           # FIX #2: Sprint 8 - was missing
 ]
 
 MIDDLEWARE = [
@@ -66,11 +78,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='edms_ldo'),
-        'USER': config('DB_USER', default='edms_user'),
+        'NAME':     config('DB_NAME',     default='edms_ldo'),
+        'USER':     config('DB_USER',     default='edms_user'),
         'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+        'HOST':     config('DB_HOST',     default='localhost'),
+        'PORT':     config('DB_PORT',     default='5432'),
         'OPTIONS': {
             'options': '-c search_path=public',
         },
@@ -82,21 +94,23 @@ AUTH_USER_MODEL = 'core.User'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 10}},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+     'OPTIONS': {'min_length': 10}},
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 LANGUAGE_CODE = 'en-in'
-TIME_ZONE = 'Asia/Kolkata'
-USE_I18N = True
-USE_TZ = True
+TIME_ZONE     = 'Asia/Kolkata'
+USE_I18N      = True
+USE_TZ        = True
 
-STATIC_URL = '/static/'
+STATIC_URL  = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICSFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# FIX #1: was STATICFFILES_STORAGE (double-F typo)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = '/media/'
+MEDIA_URL  = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -125,27 +139,37 @@ REST_FRAMEWORK = {
 }
 
 # JWT
+# FIX #4: token_blacklist app added to INSTALLED_APPS above
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
+    'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
+    'ROTATE_REFRESH_TOKENS':  True,
     'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM': 'HS256',
+    'ALGORITHM':         'HS256',
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'UPDATE_LAST_LOGIN': True,
+    'UPDATE_LAST_LOGIN':  True,
 }
 
 # File Upload
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
-ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png']
+FILE_UPLOAD_MAX_MEMORY_SIZE  = 52428800   # 50 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE  = 52428800
+ALLOWED_UPLOAD_EXTENSIONS    = ['.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png']
 
 # OCR
-OCR_TESSERACT_CMD = config('TESSERACT_CMD', default=r'C:\Program Files\Tesseract-OCR\tesseract.exe')
-OCR_DEFAULT_LANG = 'eng'
-OCR_DPI = 300
-OCR_WATCH_FOLDER = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
-OCR_MAX_RETRIES = 3
+OCR_TESSERACT_CMD  = config('TESSERACT_CMD', default=r'C:\Program Files\Tesseract-OCR\tesseract.exe')
+OCR_DEFAULT_LANG   = 'eng'
+OCR_DPI            = 300
+OCR_WATCH_FOLDER   = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
+OCR_MAX_RETRIES    = 3
 
 # LAN Security
 ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
+
+# FIX #3: Celery broker + backend settings (required for Celery to discover broker from settings)
+CELERY_BROKER_URL        = config('CELERY_BROKER_URL',   default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND    = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT    = ['json']
+CELERY_TASK_SERIALIZER   = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE          = 'Asia/Kolkata'
+CELERY_BEAT_SCHEDULER    = 'django_celery_beat.schedulers:DatabaseScheduler'

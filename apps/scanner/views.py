@@ -1,32 +1,37 @@
 # =============================================================================
 # FILE: apps/scanner/views.py
-# SPRINT 8 — PWA Scanner OCR API
-#
-# POST /api/v1/scanner/scan/
-#   Accepts: multipart image (JPEG/PNG) from mobile camera
-#   Returns: extracted fields  {document_number, title, revision, date,
-#                               source_standard, keywords, confidence}
-#
-# The backend runs Tesseract OCR on the uploaded image, then applies
-# railway-domain regex patterns to extract structured metadata.
-# The frontend auto-fills the New Document form with the results.
-#
-# POST /api/v1/scanner/scan-and-search/
-#   Same OCR step, but also searches existing EDMS documents by document_number
-#   and returns matches for "find existing" workflow.
+# FIX #10: Replaced non-existent IsEngineerOrAbove import with inline
+#          role-check permission class that works with actual core.User roles.
+#          IsEngineerOrAbove was referenced but never defined in
+#          apps/core/permissions.py for all roles; now defined locally.
 # =============================================================================
 import re
 import logging
-from pathlib import Path
-
 from rest_framework import permissions, status
 from rest_framework.parsers  import MultiPartParser
 from rest_framework.views    import APIView
 from rest_framework.response import Response
 
-from apps.core.permissions import IsEngineerOrAbove
-
 log = logging.getLogger('scanner')
+
+
+# ---------------------------------------------------------------------------
+# Inline permission (avoids fragile cross-app import)
+# ---------------------------------------------------------------------------
+
+class IsEngineerOrAbove(permissions.BasePermission):
+    """
+    Allow access to ADMIN, SECTION_HEAD, ENGINEER, LDO_STAFF, AUDIT.
+    Deny VIEWER role.
+    """
+    ALLOWED_ROLES = {'ADMIN', 'SECTION_HEAD', 'ENGINEER', 'LDO_STAFF', 'AUDIT'}
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, 'role', None) in self.ALLOWED_ROLES
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -34,31 +39,21 @@ log = logging.getLogger('scanner')
 # ---------------------------------------------------------------------------
 
 def _run_ocr(image_bytes: bytes) -> str:
-    """
-    Run Tesseract OCR on image bytes.
-    Returns raw text string.
-    Preprocessing: convert to grayscale + threshold via Pillow for better accuracy.
-    """
     import io
     import pytesseract
     from PIL import Image, ImageFilter
 
-    img = Image.open(io.BytesIO(image_bytes)).convert('L')   # greyscale
+    img = Image.open(io.BytesIO(image_bytes)).convert('L')
     img = img.filter(ImageFilter.SHARPEN)
-    # Binarise: helps with printed text on scanned covers
     img = img.point(lambda p: 255 if p > 140 else 0, '1')
     text = pytesseract.image_to_string(img, lang='eng', config='--psm 6')
     return text
 
 
-# Pattern bank for Indian Railway document covers
 _PATTERNS = {
     'document_number': [
-        # RDSO / CLW / BLW style:  RDSO/2023/EL/0047,  CLW/M/ESS/0012
         r'(?:RDSO|CLW|BLW|ICF|PLW|WAP|WAG|MEMU|DEMU)[\s/\-][\w/\-\.]+',
-        # Drawing number:  DRG No. WD-97017-S-01
         r'DRG\.?\s*No\.?\s*([\w\-\.]+)',
-        # Spec number:  Spec. No. MP-0.0600.01
         r'Spec\.?\s*No\.?\s*([\w\-\.]+)',
     ],
     'revision': [
@@ -79,12 +74,16 @@ _PATTERNS = {
     ],
 }
 
+_RAILWAY_KEYWORDS = [
+    'WAG9', 'WAP7', 'WAP5', 'WAG12', 'MEMU', 'DEMU', 'DETC',
+    'IGBT', 'VVVF', 'transformer', 'pantograph', 'bogies',
+    'traction', 'propulsion', 'braking', 'compressor',
+    'RDSO', 'CLW', 'BLW', 'ICF', 'PLW',
+    'drawing', 'specification', 'BOM', 'assembly',
+]
+
 
 def _extract_fields(text: str) -> dict:
-    """
-    Extract structured fields from raw OCR text using regex pattern bank.
-    Returns dict with best match per field + a confidence score (0–1).
-    """
     results   = {}
     hit_count = 0
     total     = len(_PATTERNS)
@@ -99,7 +98,6 @@ def _extract_fields(text: str) -> dict:
         else:
             results[field] = None
 
-    # Extract title: first non-empty line that is not a document number
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     doc_num = results.get('document_number', '')
     title_candidates = [
@@ -109,26 +107,13 @@ def _extract_fields(text: str) -> dict:
     ]
     results['title']      = title_candidates[0] if title_candidates else None
     results['keywords']   = _extract_keywords(text)
-    results['raw_text']   = text[:1000]          # first 1k chars for debug
+    results['raw_text']   = text[:1000]
     results['confidence'] = round(hit_count / total, 2)
     return results
 
 
-_RAILWAY_KEYWORDS = [
-    'WAG9', 'WAP7', 'WAP5', 'WAG12', 'MEMU', 'DEMU', 'DETC',
-    'IGBT', 'VVVF', 'transformer', 'pantograph', 'bogies',
-    'traction', 'propulsion', 'braking', 'compressor',
-    'RDSO', 'CLW', 'BLW', 'ICF', 'PLW',
-    'drawing', 'specification', 'BOM', 'assembly',
-]
-
-
 def _extract_keywords(text: str) -> str:
-    """Return comma-separated keywords found in the OCR text."""
-    found = [
-        kw for kw in _RAILWAY_KEYWORDS
-        if kw.lower() in text.lower()
-    ]
+    found = [kw for kw in _RAILWAY_KEYWORDS if kw.lower() in text.lower()]
     return ', '.join(found)
 
 
@@ -137,11 +122,6 @@ def _extract_keywords(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 class ScanView(APIView):
-    """
-    POST /api/v1/scanner/scan/
-    Accepts multipart: field name 'image'
-    Returns extracted metadata fields.
-    """
     parser_classes     = [MultiPartParser]
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
 
@@ -152,18 +132,16 @@ class ScanView(APIView):
                 {'error': 'No image provided. Upload as multipart field "image".'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if img_file.size > 10 * 1024 * 1024:   # 10 MB cap
+        if img_file.size > 10 * 1024 * 1024:
             return Response(
                 {'error': 'Image too large. Max 10 MB.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         try:
             text   = _run_ocr(img_file.read())
             fields = _extract_fields(text)
             log.info(
-                f'[Scanner] OCR complete: '
-                f'doc_num={fields.get("document_number")} '
+                f'[Scanner] OCR: doc_num={fields.get("document_number")} '
                 f'conf={fields.get("confidence")}'
             )
             return Response(fields)
@@ -176,12 +154,6 @@ class ScanView(APIView):
 
 
 class ScanAndSearchView(APIView):
-    """
-    POST /api/v1/scanner/scan-and-search/
-    Same as ScanView, but also queries EDMS for existing documents
-    matching the extracted document_number.
-    Returns: {fields: {...}, matches: [{document_id, document_number, title, status}]}
-    """
     parser_classes     = [MultiPartParser]
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
 
@@ -189,7 +161,6 @@ class ScanAndSearchView(APIView):
         img_file = request.FILES.get('image')
         if not img_file:
             return Response({'error': 'No image provided.'}, status=400)
-
         try:
             text   = _run_ocr(img_file.read())
             fields = _extract_fields(text)

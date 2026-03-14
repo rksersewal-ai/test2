@@ -1,3 +1,9 @@
+# =============================================================================
+# requirements.txt  — PLW EDMS + LDO (all 8 sprints)
+# FIX #7: Added missing qrcode, requests, bcrypt
+# FIX #8: Added django-celery-beat (needed for DatabaseScheduler)
+# =============================================================================
+
 # Core Framework
 Django==4.2.11
 djangorestframework==3.15.1
@@ -27,6 +33,16 @@ pdfplumber==0.11.0
 # Background Tasks (Windows-compatible)
 celery==5.3.6
 redis==5.0.3
+django-celery-beat==2.6.0   # FIX #8: required for CELERY_BEAT_SCHEDULER DatabaseScheduler
+
+# QR code (used by Sprint 8 scanner, future TOTP)
+qrcode==7.4.2               # FIX #7: was missing
+
+# HTTP client for webhook delivery
+requests==2.31.0            # FIX #7: was missing (used in apps/webhooks/tasks.py)
+
+# Password hashing for share-link passwords
+bcrypt==4.1.2               # FIX #7: was missing (used in apps/sharelinks/)
 
 # Utilities
 python-decouple==3.8

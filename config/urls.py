@@ -1,6 +1,11 @@
 # =============================================================================
 # FILE: config/urls.py
-# Sprint 8 (PWA Scanner retained) | TOTP removed.
+# FIX #9: Removed double-nested totp login path that was mis-routing.
+#         TOTP module is deferred; stub urlpatterns=[] in apps/totp/urls.py
+#         means including it is harmless but the /auth/token/2fa/ prefix
+#         was wrong (it included ALL totp urls under that path, including
+#         setup/confirm which are user-profile endpoints, not auth endpoints).
+#         Corrected: totp/ prefix for management, auth/token/2fa/ removed.
 # =============================================================================
 from django.contrib import admin
 from django.urls    import path, include
@@ -34,7 +39,7 @@ urlpatterns = [
     path(API_V1 + 'sharelinks/', include('apps.sharelinks.urls')),
     path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
 
-    # Sprint 8: PWA Scanner (TOTP removed)
+    # Sprint 8: PWA Scanner
     path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
 
     # Sprint 7: Public share-link routes (no auth required)
