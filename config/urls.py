@@ -1,7 +1,6 @@
 # =============================================================================
 # FILE: config/urls.py
-# SPRINT 8 UPDATE (FINAL): Added TOTP + scanner routes.
-# All previous routes preserved exactly.
+# Sprint 8 (PWA Scanner retained) | TOTP removed.
 # =============================================================================
 from django.contrib import admin
 from django.urls    import path, include
@@ -22,10 +21,7 @@ urlpatterns = [
     path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(),   name='token_refresh'),
     path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),    name='token_verify'),
 
-    # Sprint 8: Combined 2FA login (replaces standard token for enforced roles)
-    path(API_V1 + 'auth/token/2fa/',     include('apps.totp.urls')),
-
-    # App APIs (Sprints 1–7, preserved)
+    # App APIs (Sprints 1–8)
     path(API_V1 + 'core/',       include('apps.core.urls')),
     path(API_V1 + 'edms/',       include('apps.edms.urls')),
     path(API_V1 + 'workflow/',   include('apps.workflow.urls')),
@@ -38,10 +34,7 @@ urlpatterns = [
     path(API_V1 + 'sharelinks/', include('apps.sharelinks.urls')),
     path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
 
-    # Sprint 8: TOTP management
-    path(API_V1 + 'totp/',       include('apps.totp.urls')),
-
-    # Sprint 8: PWA Scanner
+    # Sprint 8: PWA Scanner (TOTP removed)
     path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
 
     # Sprint 7: Public share-link routes (no auth required)
