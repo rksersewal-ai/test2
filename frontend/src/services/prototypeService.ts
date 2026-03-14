@@ -1,11 +1,16 @@
 // =============================================================================
-// FILE: frontend/src/services/prototypeService.ts  (Phase 6 — corrected URLs)
+// FILE: frontend/src/services/prototypeService.ts
+// BUG FIX 1: addPunchItem renamed → createPunchItem
+//            (PrototypeInspectionPage called createPunchItem which did not exist)
+// BUG FIX 2: closePunchItem signature was (punchId, remarks?) but page was
+//            calling it as (inspectionId, punchId) — corrected to (punchId, remarks?)
+//            and fixed the call-site in PrototypeInspectionPage.tsx.
 // Matches Django prototype.urls:
-//   /api/prototype/inspections/                       → list/create
-//   /api/prototype/inspections/:id/                   → retrieve/update
-//   /api/prototype/inspections/:id/close/             → close action
-//   /api/prototype/inspections/:id/punch-items/       → add punch item
-//   /api/prototype/punch-items/:id/close/             → close punch item
+//   /api/v1/prototype/inspections/                   → list/create
+//   /api/v1/prototype/inspections/:id/               → retrieve/update
+//   /api/v1/prototype/inspections/:id/close/         → close action
+//   /api/v1/prototype/inspections/:id/punch-items/   → add punch item
+//   /api/v1/prototype/punch-items/:id/close/         → close punch item
 // =============================================================================
 import api from '../api/axios';
 import type { PaginatedResponse } from '../api/types';
@@ -31,17 +36,35 @@ export const prototypeService = {
     api.post<Inspection>(`${BASE}/inspections/${id}/close/`).then(r => r.data),
 
   // ---- Punch Items ----------------------------------------------------------
-  // Add punch item to an inspection
+
+  /**
+   * Add / create a punch item on an inspection.
+   * BUG FIX: was named addPunchItem — page called createPunchItem → crash.
+   * Both names are exported for safety.
+   */
+  createPunchItem: (inspectionId: number, data: Partial<PunchItem>) =>
+    api.post<PunchItem>(`${BASE}/inspections/${inspectionId}/punch-items/`, data).then(r => r.data),
+
+  // Legacy alias so nothing else breaks
   addPunchItem: (inspectionId: number, data: Partial<PunchItem>) =>
     api.post<PunchItem>(`${BASE}/inspections/${inspectionId}/punch-items/`, data).then(r => r.data),
 
-  // Close a punch item (standalone endpoint — correct URL vs old stub)
+  /**
+   * Close a punch item.
+   * BUG FIX: page was calling closePunchItem(inspectionId, punchId) passing
+   * TWO args where the function only expected (punchId, remarks?).
+   * Correct signature: closePunchItem(punchId, remarks?)
+   * The call-site in PrototypeInspectionPage.tsx is fixed separately.
+   */
   closePunchItem: (punchId: number, remarks?: string) =>
     api.post<PunchItem>(`${BASE}/punch-items/${punchId}/close/`, { remarks }).then(r => r.data),
 
-  // Fetch all punch items for an inspection (from nested list)
+  /**
+   * List all punch items for an inspection.
+   * Returns PaginatedResponse or plain array depending on backend config.
+   */
   listPunchItems: (inspectionId: number, params?: Record<string, string>) =>
     api.get<PaginatedResponse<PunchItem>>(`${BASE}/punch-items/`, {
-      params: { inspection: inspectionId, ...params }
+      params: { inspection: String(inspectionId), ...params },
     }).then(r => r.data),
 };
