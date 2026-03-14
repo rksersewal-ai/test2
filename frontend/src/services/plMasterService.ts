@@ -1,12 +1,16 @@
 // =============================================================================
 // FILE: frontend/src/services/plMasterService.ts
+// ADDED: Technical Evaluation Document API methods
+//   listTechEvalDocs  — GET  /pl-master/{pl}/tech-eval-docs/
+//   uploadTechEvalDoc — POST /pl-master/{pl}/tech-eval-docs/  (multipart)
+//   deleteTechEvalDoc — DELETE /pl-master/{pl}/tech-eval-docs/{id}/
 // =============================================================================
 import api from '../api/axios';
 
 const BASE = '/pl-master';
 
 export const plMasterService = {
-  // PL Master
+  // ── PL Master ───────────────────────────────────────────────────────────────
   listPL: (params?: Record<string, string>) =>
     api.get(`${BASE}/`, { params }).then(r => r.data),
   getPL: (plNumber: string) =>
@@ -20,7 +24,7 @@ export const plMasterService = {
   getBOMTree: (plNumber: string, maxDepth = 5) =>
     api.get(`${BASE}/${plNumber}/bom/`, { params: { max_depth: maxDepth } }).then(r => r.data),
 
-  // Drawings
+  // ── Drawings ─────────────────────────────────────────────────────────────
   listDrawings: (params?: Record<string, string>) =>
     api.get(`${BASE}/drawings/`, { params }).then(r => r.data),
   getDrawing: (drawingNumber: string) =>
@@ -30,7 +34,7 @@ export const plMasterService = {
   updateDrawing: (drawingNumber: string, data: any) =>
     api.patch(`${BASE}/drawings/${drawingNumber}/`, data).then(r => r.data),
 
-  // Specifications
+  // ── Specifications ──────────────────────────────────────────────────────────
   listSpecs: (params?: Record<string, string>) =>
     api.get(`${BASE}/specifications/`, { params }).then(r => r.data),
   getSpec: (specNumber: string) =>
@@ -40,11 +44,45 @@ export const plMasterService = {
   updateSpec: (specNumber: string, data: any) =>
     api.patch(`${BASE}/specifications/${specNumber}/`, data).then(r => r.data),
 
-  // Alteration History
+  // ── Alteration History ───────────────────────────────────────────────────────
   listAlterations: (params?: Record<string, string>) =>
     api.get(`${BASE}/alteration-history/`, { params }).then(r => r.data),
 
-  // Controlling Agencies
+  // ── Controlling Agencies ─────────────────────────────────────────────────────
   listAgencies: () =>
     api.get(`${BASE}/agencies/`).then(r => r.data),
+
+  // ── Technical Evaluation Documents (NEW) ──────────────────────────────
+  /**
+   * GET /pl-master/{plNumber}/tech-eval-docs/
+   * Returns list of up to 3 uploaded evaluation documents for this PL.
+   */
+  listTechEvalDocs: (plNumber: string) =>
+    api.get(`${BASE}/${plNumber}/tech-eval-docs/`).then(r => r.data),
+
+  /**
+   * POST /pl-master/{plNumber}/tech-eval-docs/
+   * Uploads a new evaluation document (PDF or DOCX).
+   * Sends multipart/form-data with: file, tender_number, eval_year
+   */
+  uploadTechEvalDoc: (
+    plNumber    : string,
+    payload     : { tender_number: string; eval_year: string; file: File }
+  ) => {
+    const fd = new FormData();
+    fd.append('file',          payload.file);
+    fd.append('tender_number', payload.tender_number);
+    fd.append('eval_year',     payload.eval_year);
+    return api.post(
+      `${BASE}/${plNumber}/tech-eval-docs/`,
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then(r => r.data);
+  },
+
+  /**
+   * DELETE /pl-master/{plNumber}/tech-eval-docs/{id}/
+   */
+  deleteTechEvalDoc: (plNumber: string, docId: number) =>
+    api.delete(`${BASE}/${plNumber}/tech-eval-docs/${docId}/`).then(r => r.data),
 };

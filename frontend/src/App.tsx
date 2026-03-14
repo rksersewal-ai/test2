@@ -1,12 +1,6 @@
 // =============================================================================
 // FILE: frontend/src/App.tsx
-// FIX: Wired 3 missing Work Ledger sub-routes that existed as pages but were
-//      never registered in React Router — making them completely unreachable.
-//   Added:
-//     /work-ledger/new           → WorkLedgerEntryPage (create)
-//     /work-ledger/:workId/edit  → WorkLedgerEntryPage (edit)
-//     /work-ledger/kpi-report    → MonthlyKpiReportPage
-//     /work-ledger/activity      → WorkActivityReportPage
+// ADDED: /pl-master/:plNumber route — PL Detail page with Tech Eval Docs panel
 // =============================================================================
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
@@ -24,6 +18,7 @@ import ConfigManagementPage    from './pages/ConfigManagementPage';
 import PrototypeInspectionPage from './pages/PrototypeInspectionPage';
 import SettingsPage            from './pages/SettingsPage';
 import PLMasterPage            from './pages/PLMaster/PLMasterPage';
+import PLDetailPage            from './pages/PLMaster/PLDetailPage';
 import WorkLedgerPage          from './pages/WorkLedger/WorkLedgerPage';
 import WorkLedgerEntryPage     from './pages/work-ledger/WorkLedgerEntryPage';
 import MonthlyKpiReportPage    from './pages/work-ledger/MonthlyKpiReportPage';
@@ -69,11 +64,13 @@ export default function App() {
         <Route path="bom"                  element={<BOMPage />} />
         <Route path="config"               element={<ConfigManagementPage />} />
         <Route path="prototype-inspection" element={<PrototypeInspectionPage />} />
-        <Route path="pl-master"            element={<PLMasterPage />} />
-        <Route path="pl-master/*"          element={<PLMasterPage />} />
-        <Route path="master-data"          element={<MasterDataPage />} />
+        {/* PL Master list + detail (with Tech Eval Docs) */}
+        <Route path="pl-master"                    element={<PLMasterPage />} />
+        <Route path="pl-master/*"                  element={<PLMasterPage />} />
+        <Route path="pl-master/:plNumber"           element={<PLDetailPage />} />
+        <Route path="master-data"                  element={<MasterDataPage />} />
 
-        {/* Work Ledger — main list + sub-routes (FIX: 3 routes were missing) */}
+        {/* Work Ledger */}
         <Route path="work-ledger"               element={<WorkLedgerPage />} />
         <Route path="work-ledger/new"            element={<WorkLedgerEntryPage />} />
         <Route path="work-ledger/:workId/edit"   element={<WorkLedgerEntryPage />} />
