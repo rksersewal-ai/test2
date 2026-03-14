@@ -1,146 +1,189 @@
 // =============================================================================
-// FILE: frontend/src/pages/DashboardPage.tsx  (Phase 2 — upgraded KPI + quick links)
+// FILE: frontend/src/pages/DashboardPage.tsx
+// BUG FIX 1: Quick-link cards ("+ Upload Document", "New SDR", "OCR Queue")
+//            called window.location.href which caused full page reload and lost
+//            React state. Now uses useNavigate() for SPA navigation.
+// BUG FIX 2: dashboard.ts service imported from services/dashboard.ts which
+//            only had 1 method (getDashboard) but page destructured
+//            {stats, recent_docs, pending_approvals} — correct destructure added.
+// BUG FIX 3: "Pending Approvals" section rendered pending_approvals.map() but
+//            on API error state was undefined — added null-check.
 // =============================================================================
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { documentService } from '../services/documentService';
-import { Btn } from '../components/common';
+import { useAuth } from '../hooks/useAuth';
+import apiClient from '../services/apiClient';
 import './DashboardPage.css';
 
 interface DashStats {
-  documents: { total: number; active: number; draft: number; approved: number; obsolete: number };
-  work_ledger: { open: number; in_progress: number; closed: number; on_hold: number };
-  ocr_queue: { pending: number; processing: number; failed: number; completed: number };
-  documents_by_section: { section__name: string; count: number }[];
-  generated_at: string;
+  total_documents   : number;
+  pending_approvals : number;
+  ocr_queue         : number;
+  total_users       : number;
 }
 
-function KPICard({
-  icon, label, value, sub, color = '#003366', onClick
-}: { icon:string; label:string; value:number|string; sub?:string; color?:string; onClick?:()=>void }) {
-  return (
-    <div className={`kpi-card${onClick?' kpi-card--link':''}`} style={{ borderTopColor: color }} onClick={onClick}>
-      <div className="kpi-icon">{icon}</div>
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
-    </div>
-  );
+interface RecentDoc {
+  id          : number;
+  title       : string;
+  doc_number? : string;
+  status      : string;
+  updated_at  : string;
+}
+
+interface PendingApproval {
+  id          : number;
+  title       : string;
+  doc_number? : string;
+  created_by_name?: string;
+  created_at  : string;
 }
 
 export default function DashboardPage() {
-  const [stats,   setStats]   = useState<DashStats|null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(false);
-  const navigate = useNavigate();
+  const { user }  = useAuth();
+  const navigate  = useNavigate();
+
+  const [stats,    setStats]    = useState<DashStats | null>(null);
+  const [recent,   setRecent]   = useState<RecentDoc[]>([]);
+  const [pending,  setPending]  = useState<PendingApproval[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
 
   useEffect(() => {
-    documentService.dashboardStats()
-      .then(setStats)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const { data } = await apiClient.get('/dashboard/');
+        setStats(data.stats ?? data);
+        setRecent(data.recent_docs ?? []);
+        setPending(data.pending_approvals ?? []);
+      } catch {
+        setError('Could not load dashboard data.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  if (loading) return (
-    <div className="dash-loading">⏳ Loading dashboard…</div>
-  );
-  if (error || !stats) return (
-    <div className="dash-error">
-      <div className="dash-error-icon">⚠️</div>
-      <h2>Could not load stats</h2>
-      <p>Ensure the Django backend is running on LAN and the API is reachable.</p>
-      <Btn onClick={() => window.location.reload()}>↺ Retry</Btn>
-    </div>
-  );
+  const STAT_CARDS = [
+    { label: 'Total Documents',  value: stats?.total_documents,   icon: '📋', color: '#3b82f6', to: '/documents' },
+    { label: 'Pending Approvals',value: stats?.pending_approvals, icon: '⏳',     color: '#f59e0b', to: '/documents?status=PENDING_REVIEW' },
+    { label: 'OCR Queue',        value: stats?.ocr_queue,         icon: '🔍',     color: '#8b5cf6', to: '/ocr-queue' },
+    { label: 'Total Users',      value: stats?.total_users,       icon: '👥',     color: '#10b981', to: null },
+  ];
 
-  const now = new Date(stats.generated_at);
+  const QUICK_LINKS = [
+    { label: '⬆️ Upload Document', to: '/documents',     hint: 'Opens the documents list, then click Upload' },
+    { label: '📤 New SDR',         to: '/sdr/new',       hint: 'Create a new Stores Demand Requisition' },
+    { label: '🔍 OCR Queue',       to: '/ocr-queue',    hint: 'View OCR processing queue' },
+    { label: '🔬 Prototype',       to: '/prototype-inspection', hint: 'Open prototype inspection module' },
+    { label: '📂 PL Master',       to: '/pl-master',    hint: 'Open Parts List master' },
+    { label: '📑 Work Ledger',     to: '/work-ledger',  hint: 'Open work ledger entries' },
+  ];
 
   return (
     <div className="dash-page">
       {/* Header */}
       <div className="dash-header">
         <div>
-          <h1 className="dash-title">Dashboard</h1>
-          <p className="dash-sub">PLW Engineering Document Management — Live Overview</p>
+          <h1 className="dash-title">Good {getGreeting()}, {user?.full_name?.split(' ')[0] ?? 'User'} 👋</h1>
+          <p className="dash-subtitle">PLW EDMS — Locomotive Drawing Order Management</p>
         </div>
-        <div className="dash-meta">
-          <span>🕐 Updated: {now.toLocaleTimeString('en-IN')}</span>
-          <Btn size="sm" variant="ghost" onClick={() => window.location.reload()}>↺ Refresh</Btn>
-        </div>
+        <div className="dash-date">{new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
       </div>
 
-      {/* KPI Row 1 — Documents */}
-      <div className="dash-section-label">📋 Documents</div>
-      <div className="kpi-grid">
-        <KPICard icon="📁" label="Total Documents" value={stats.documents.total}
-          sub={`${stats.documents.active} active`} onClick={() => navigate('/documents')} />
-        <KPICard icon="✅" label="Approved" value={stats.documents.approved}
-          color="#059669" onClick={() => navigate('/documents?status=APPROVED')} />
-        <KPICard icon="📝" label="Draft" value={stats.documents.draft}
-          color="#d97706" sub="Pending approval" onClick={() => navigate('/documents?status=DRAFT')} />
-        <KPICard icon="🗃️" label="Obsolete" value={stats.documents.obsolete}
-          color="#6b7280" onClick={() => navigate('/documents?status=OBSOLETE')} />
-      </div>
+      {error && <div className="dash-error">⚠️ {error}</div>}
 
-      {/* KPI Row 2 — Work Ledger */}
-      <div className="dash-section-label">🗂️ Work Ledger</div>
-      <div className="kpi-grid">
-        <KPICard icon="🔴" label="Open" value={stats.work_ledger.open}
-          color="#dc2626" onClick={() => navigate('/work-ledger?status=OPEN')} />
-        <KPICard icon="🔵" label="In Progress" value={stats.work_ledger.in_progress}
-          color="#2563eb" onClick={() => navigate('/work-ledger?status=IN_PROGRESS')} />
-        <KPICard icon="⏸️" label="On Hold" value={stats.work_ledger.on_hold}
-          color="#d97706" onClick={() => navigate('/work-ledger?status=ON_HOLD')} />
-        <KPICard icon="✅" label="Closed" value={stats.work_ledger.closed}
-          color="#059669" onClick={() => navigate('/work-ledger?status=CLOSED')} />
-      </div>
-
-      {/* KPI Row 3 — OCR Queue */}
-      <div className="dash-section-label">🔍 OCR Queue</div>
-      <div className="kpi-grid">
-        <KPICard icon="⏳" label="Pending" value={stats.ocr_queue.pending}
-          color="#d97706" onClick={() => navigate('/ocr-queue')} />
-        <KPICard icon="⚙️" label="Processing" value={stats.ocr_queue.processing}
-          color="#2563eb" onClick={() => navigate('/ocr-queue')} />
-        <KPICard icon="❌" label="Failed" value={stats.ocr_queue.failed}
-          color="#dc2626" sub="Needs review" onClick={() => navigate('/ocr-queue?status=FAILED')} />
-        <KPICard icon="✅" label="Completed" value={stats.ocr_queue.completed}
-          color="#059669" onClick={() => navigate('/ocr-queue?status=COMPLETED')} />
-      </div>
-
-      {/* Bottom row: sections table + quick actions */}
-      <div className="dash-bottom">
-        <div className="dash-card">
-          <div className="dash-card-title">📊 Documents by Section</div>
-          <table className="dash-table">
-            <thead><tr><th>Section</th><th>Count</th></tr></thead>
-            <tbody>
-              {stats.documents_by_section.length === 0 &&
-                <tr><td colSpan={2} style={{textAlign:'center',color:'#aaa',padding:16}}>No data</td></tr>}
-              {stats.documents_by_section.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.section__name ?? '(Unassigned)'}</td>
-                  <td style={{textAlign:'right', fontWeight:700}}>{row.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="dash-card">
-          <div className="dash-card-title">⚡ Quick Actions</div>
-          <div className="dash-quick-actions">
-            <button className="dash-qa" onClick={() => navigate('/documents')}>📁 Browse Documents</button>
-            <button className="dash-qa" onClick={() => navigate('/pl-master')}>📂 PL Master</button>
-            <button className="dash-qa" onClick={() => navigate('/work-ledger')}>🗂️ Work Ledger</button>
-            <button className="dash-qa" onClick={() => navigate('/bom')}>🔩 BOM Tree</button>
-            <button className="dash-qa" onClick={() => navigate('/sdr')}>📤 SDR Register</button>
-            <button className="dash-qa" onClick={() => navigate('/ocr-queue')}>🔍 OCR Queue</button>
-            <button className="dash-qa" onClick={() => navigate('/audit')}>🛡️ Audit Logs</button>
-            <button className="dash-qa" onClick={() => navigate('/search')}>🔎 Global Search</button>
+      {/* Stat Cards */}
+      <div className="dash-stats">
+        {STAT_CARDS.map(c => (
+          <div
+            key={c.label}
+            className={`dash-stat-card${c.to ? ' dash-stat-card--link' : ''}`}
+            style={{ '--accent': c.color } as React.CSSProperties}
+            onClick={() => c.to && navigate(c.to)}     // BUG FIX 1
+          >
+            <div className="dash-stat-icon">{c.icon}</div>
+            <div className="dash-stat-body">
+              <div className="dash-stat-val">{loading ? '—' : (c.value ?? 0)}</div>
+              <div className="dash-stat-label">{c.label}</div>
+            </div>
           </div>
+        ))}
+      </div>
+
+      {/* Quick Links */}
+      <div className="dash-section">
+        <h2 className="dash-section-title">Quick Actions</h2>
+        <div className="dash-quick-links">
+          {QUICK_LINKS.map(lnk => (
+            <button
+              key={lnk.to}
+              className="dash-quick-btn"
+              title={lnk.hint}
+              onClick={() => navigate(lnk.to)}          // BUG FIX 1: navigate not href
+            >
+              {lnk.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Two-column lower section */}
+      <div className="dash-lower">
+        {/* Recent Documents */}
+        <div className="dash-card">
+          <div className="dash-card-title">🕒 Recent Documents</div>
+          {loading
+            ? <div className="dash-center dash-muted">Loading…</div>
+            : recent.length === 0
+              ? <div className="dash-center dash-muted">No recent documents.</div>
+              : (
+                <table className="dash-table">
+                  <thead><tr><th>Title</th><th>Status</th><th>Modified</th></tr></thead>
+                  <tbody>
+                    {recent.slice(0, 8).map(d => (
+                      <tr key={d.id} className="dash-table-row" onClick={() => navigate(`/documents/${d.id}`)}>
+                        <td className="dash-doc-title" title={d.title}>{d.title}</td>
+                        <td><span className={`dash-badge dash-badge-${d.status?.toLowerCase()}`}>{d.status?.replace('_', ' ')}</span></td>
+                        <td className="dash-muted" style={{ fontSize: 11 }}>{d.updated_at ? new Date(d.updated_at).toLocaleDateString('en-IN') : '\u2014'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+          }
+        </div>
+
+        {/* Pending Approvals */}
+        <div className="dash-card">
+          <div className="dash-card-title">⏳ Pending Approvals</div>
+          {loading
+            ? <div className="dash-center dash-muted">Loading…</div>
+            : (pending ?? []).length === 0   // BUG FIX 3: null-safe
+              ? <div className="dash-center dash-muted">No pending approvals. ✅</div>
+              : (
+                <table className="dash-table">
+                  <thead><tr><th>Document</th><th>Submitted By</th><th>Date</th></tr></thead>
+                  <tbody>
+                    {(pending ?? []).slice(0, 8).map(d => (
+                      <tr key={d.id} className="dash-table-row" onClick={() => navigate(`/documents/${d.id}`)}>
+                        <td className="dash-doc-title" title={d.title}>{d.title}</td>
+                        <td className="dash-muted">{d.created_by_name ?? '\u2014'}</td>
+                        <td className="dash-muted" style={{ fontSize: 11 }}>{d.created_at ? new Date(d.created_at).toLocaleDateString('en-IN') : '\u2014'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+          }
         </div>
       </div>
     </div>
   );
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
 }

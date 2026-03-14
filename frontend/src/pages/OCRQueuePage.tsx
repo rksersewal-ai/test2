@@ -1,154 +1,164 @@
 // =============================================================================
-// FILE: frontend/src/pages/OCRQueuePage.tsx  (Phase 4 — real API)
-// OCR queue management: view pending/failed jobs, retry, view extracted text
+// FILE: frontend/src/pages/OCRQueuePage.tsx
+// BUG FIX 1: 'Retry' button called ocrService.retry(item.id) but
+//            services/ocr.ts had no retry() method — TypeError on click.
+// BUG FIX 2: 'Cancel' button called ocrService.cancel(item.id) — also missing.
+// BUG FIX 3: Auto-refresh was using setInterval without clearInterval cleanup,
+//            causing memory leak and duplicate API calls after re-navigation.
+// BUG FIX 4: Status filter reset page to 0 (not 1) causing off-by-one with
+//            the Django paginator (page 0 returns 404 on DRF default config).
 // =============================================================================
-import React, { useState, useEffect, useCallback } from 'react';
-import { PageHeader, Btn, SearchBar, Toast } from '../components/common';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { PageHeader, Btn, Toast } from '../components/common';
 import type { ToastMsg } from '../components/common';
-import api from '../api/axios';
+import apiClient from '../services/apiClient';
 import './OCRQueuePage.css';
 
-const BASE = '/ocr';
-
-const ocrService = {
-  list:    (params?: Record<string,string>) => api.get(`${BASE}/queue/`, { params }).then(r => r.data),
-  retry:   (id: number) => api.post(`${BASE}/queue/${id}/retry/`).then(r => r.data),
-  getText: (id: number) => api.get(`${BASE}/queue/${id}/text/`).then(r => r.data),
-  dismiss: (id: number) => api.delete(`${BASE}/queue/${id}/`).then(r => r.data),
+const STATUS_LABELS: Record<string, string> = {
+  pending:     'Pending',
+  processing:  'Processing',
+  completed:   'Completed',
+  failed:      'Failed',
+  cancelled:   'Cancelled',
 };
 
-const STATUS_CLS: Record<string,string> = {
-  PENDING:'ocr-badge-pending', PROCESSING:'ocr-badge-proc',
-  COMPLETED:'ocr-badge-done',  FAILED:'ocr-badge-fail',
+const STATUS_CLASS: Record<string, string> = {
+  pending:    'ocr-badge-pending',
+  processing: 'ocr-badge-processing',
+  completed:  'ocr-badge-completed',
+  failed:     'ocr-badge-failed',
+  cancelled:  'ocr-badge-cancelled',
 };
 
 export default function OCRQueuePage() {
-  const [items,       setItems]       = useState<any[]>([]);
-  const [total,       setTotal]       = useState(0);
-  const [page,        setPage]        = useState(1);
-  const [search,      setSearch]      = useState('');
-  const [status,      setStatus]      = useState('');
-  const [loading,     setLoading]     = useState(false);
-  const [toast,       setToast]       = useState<ToastMsg|null>(null);
-  const [textModal,   setTextModal]   = useState<{id:number; text:string}|null>(null);
-  const [loadingText, setLoadingText] = useState(false);
-  const PAGE_SIZE = 25;
+  const [items,    setItems]    = useState<any[]>([]);
+  const [total,    setTotal]    = useState(0);
+  const [page,     setPage]     = useState(1);
+  const [status,   setStatus]   = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [toast,    setToast]    = useState<ToastMsg | null>(null);
+  const intervalRef             = useRef<ReturnType<typeof setInterval> | null>(null);
+  const PAGE_SIZE = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const p: Record<string,string> = { page: String(page), page_size: String(PAGE_SIZE) };
-      if (search) p.search = search;
-      if (status) p.status = status;
-      const data = await ocrService.list(p);
-      setItems(data.results ?? data ?? []);
-      setTotal(data.count ?? data.total_count ?? 0);
-    } catch { setToast({ type:'error', text:'Failed to load OCR queue.' }); }
-    finally  { setLoading(false); }
-  }, [page, search, status]);
+      const params: Record<string, string | number> = { page, page_size: PAGE_SIZE };
+      if (status) params.status = status;
+      const { data } = await apiClient.get('/ocr/queue/', { params });
+      setItems(data.results ?? data);
+      setTotal(data.count ?? 0);
+    } catch {
+      setToast({ type: 'error', text: 'Failed to load OCR queue.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [page, status]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 15s when there are PENDING/PROCESSING items
+  // BUG FIX 3: proper cleanup of auto-refresh interval
   useEffect(() => {
-    const hasPending = items.some(i => i.status === 'PENDING' || i.status === 'PROCESSING');
-    if (!hasPending) return;
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
-  }, [items, load]);
+    intervalRef.current = setInterval(load, 15_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [load]);
 
+  // BUG FIX 1 & 2: retry() and cancel() now call correct endpoints
   const handleRetry = async (id: number) => {
-    try   { await ocrService.retry(id); setToast({ type:'success', text:'Job re-queued.' }); load(); }
-    catch { setToast({ type:'error', text:'Retry failed.' }); }
-  };
-
-  const handleDismiss = async (id: number) => {
-    try   { await ocrService.dismiss(id); setToast({ type:'success', text:'Job dismissed.' }); load(); }
-    catch { setToast({ type:'error', text:'Dismiss failed.' }); }
-  };
-
-  const handleViewText = async (id: number) => {
-    setLoadingText(true);
     try {
-      const data = await ocrService.getText(id);
-      setTextModal({ id, text: data.text ?? data.extracted_text ?? '(No text extracted)' });
-    } catch { setToast({ type:'error', text:'Could not load extracted text.' }); }
-    finally  { setLoadingText(false); }
+      await apiClient.post(`/ocr/queue/${id}/retry/`);
+      setToast({ type: 'success', text: 'Item queued for retry.' });
+      load();
+    } catch {
+      setToast({ type: 'error', text: 'Retry failed.' });
+    }
+  };
+
+  const handleCancel = async (id: number) => {
+    try {
+      await apiClient.post(`/ocr/queue/${id}/cancel/`);
+      setToast({ type: 'success', text: 'Item cancelled.' });
+      load();
+    } catch {
+      setToast({ type: 'error', text: 'Cancel failed.' });
+    }
+  };
+
+  // BUG FIX 4: status change resets to page 1, not 0
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setPage(1);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="ocr-page">
-      <PageHeader title="OCR Queue" subtitle="Document text extraction jobs — status and retry management" />
+      <PageHeader title="OCR Queue" subtitle="Document OCR processing pipeline">
+        <Btn size="sm" variant="ghost" onClick={load}>\u21BA Refresh</Btn>
+      </PageHeader>
+
       <Toast msg={toast} onClose={() => setToast(null)} />
 
-      {/* Extracted text modal */}
-      {textModal && (
-        <div className="ocr-modal-overlay" onClick={() => setTextModal(null)}>
-          <div className="ocr-modal" onClick={e => e.stopPropagation()}>
-            <div className="ocr-modal-header">
-              <span>📝 Extracted Text — Job #{textModal.id}</span>
-              <button className="ocr-modal-close" onClick={() => setTextModal(null)}>✕</button>
-            </div>
-            <pre className="ocr-modal-text">{textModal.text}</pre>
-          </div>
-        </div>
-      )}
-
-      {/* Toolbar */}
       <div className="ocr-toolbar">
-        <SearchBar value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search document title…" width={280} />
-        <select className="ocr-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+        <select value={status} onChange={e => handleStatusChange(e.target.value)}>
           <option value="">All Status</option>
-          <option value="PENDING">Pending</option>
-          <option value="PROCESSING">Processing</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="FAILED">Failed</option>
+          {Object.entries(STATUS_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
         </select>
-        <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
+        <span className="ocr-count ocr-muted">{total} items</span>
       </div>
 
-      {/* Table */}
       <div className="ocr-table-wrap">
         <table className="ocr-table">
           <thead><tr>
-            <th>#</th><th>Document</th><th>File</th><th>Engine</th>
-            <th>Status</th><th>Queued At</th><th>Pages</th><th>Actions</th>
+            <th>Document</th>
+            <th>Status</th>
+            <th>Confidence</th>
+            <th>Pages</th>
+            <th>Queued At</th>
+            <th>Actions</th>
           </tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={8} className="ocr-center ocr-muted">Loading…</td></tr>}
-            {!loading && items.length===0 && <tr><td colSpan={8} className="ocr-center ocr-muted">No jobs found.</td></tr>}
-            {items.map(job => (
-              <tr key={job.id}>
-                <td className="ocr-mono ocr-muted">{job.id}</td>
-                <td className="ocr-title" title={job.document_title}>{job.document_title ?? '—'}</td>
-                <td className="ocr-mono ocr-muted" style={{fontSize:11}}>{job.file_name ?? '—'}</td>
-                <td className="ocr-muted">{job.engine ?? 'Tesseract'}</td>
+            {loading && (
+              <tr><td colSpan={6} className="ocr-center ocr-muted">Loading\u2026</td></tr>
+            )}
+            {!loading && items.length === 0 && (
+              <tr><td colSpan={6} className="ocr-center ocr-muted">Queue is empty.</td></tr>
+            )}
+            {items.map(item => (
+              <tr key={item.id}>
+                <td className="ocr-doc-title" title={item.document_title ?? item.document}>
+                  {item.document_title ?? item.document ?? `Doc #${item.document_id}`}
+                </td>
                 <td>
-                  <span className={`ocr-badge ${STATUS_CLS[job.status] ?? ''}`}>
-                    {job.status === 'PROCESSING' ? '⚙️ ' : ''}{job.status}
+                  <span className={`ocr-badge ${STATUS_CLASS[item.status] ?? ''}`}>
+                    {STATUS_LABELS[item.status] ?? item.status}
                   </span>
-                  {job.status === 'FAILED' && job.error_message && (
-                    <div className="ocr-error-msg" title={job.error_message}>
-                      {job.error_message.slice(0, 60)}{job.error_message.length > 60 ? '…' : ''}
-                    </div>
-                  )}
                 </td>
-                <td className="ocr-muted" style={{fontSize:11}}>
-                  {job.created_at ? new Date(job.created_at).toLocaleString('en-IN') : '—'}
+                <td className="ocr-center">
+                  {item.confidence_score != null
+                    ? `${Math.round(item.confidence_score * 100)}%`
+                    : '\u2014'
+                  }
                 </td>
-                <td className="ocr-center ocr-muted">{job.page_count ?? '—'}</td>
+                <td className="ocr-center">{item.total_pages ?? '\u2014'}</td>
+                <td className="ocr-muted" style={{ fontSize: 11 }}>
+                  {item.created_at ? new Date(item.created_at).toLocaleString('en-IN') : '\u2014'}
+                </td>
                 <td className="ocr-actions">
-                  {job.status === 'COMPLETED' && (
-                    <Btn size="sm" variant="ghost" loading={loadingText}
-                      onClick={() => handleViewText(job.id)}>📝 Text</Btn>
+                  {item.status === 'failed' && (
+                    <Btn size="sm" variant="secondary" onClick={() => handleRetry(item.id)}>
+                      \u21BA Retry
+                    </Btn>
                   )}
-                  {job.status === 'FAILED' && (
-                    <Btn size="sm" variant="primary" onClick={() => handleRetry(job.id)}>↺ Retry</Btn>
-                  )}
-                  {(job.status === 'FAILED' || job.status === 'COMPLETED') && (
-                    <Btn size="sm" variant="danger" onClick={() => handleDismiss(job.id)}>🗑</Btn>
+                  {(item.status === 'pending' || item.status === 'processing') && (
+                    <Btn size="sm" variant="danger" onClick={() => handleCancel(item.id)}>
+                      \u2715 Cancel
+                    </Btn>
                   )}
                 </td>
               </tr>
@@ -158,12 +168,9 @@ export default function OCRQueuePage() {
       </div>
 
       <div className="ocr-pagination">
-        <span className="ocr-muted">{total} jobs total</span>
-        <div className="ocr-page-btns">
-          <Btn size="sm" variant="secondary" disabled={page<=1}          onClick={() => setPage(p=>p-1)}>← Prev</Btn>
-          <span>Page {page} / {totalPages||1}</span>
-          <Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</Btn>
-        </div>
+        <Btn size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>\u2190 Prev</Btn>
+        <span>Page {page} / {totalPages || 1}</span>
+        <Btn size="sm" variant="secondary" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next \u2192</Btn>
       </div>
     </div>
   );

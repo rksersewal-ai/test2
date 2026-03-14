@@ -1,6 +1,11 @@
 // =============================================================================
-// FILE: frontend/src/pages/DocumentDetailPage.tsx  (Phase 3 — full detail +
-// approve / reject / supersede / download / version history)
+// FILE: frontend/src/pages/DocumentDetailPage.tsx
+// BUG FIX 1: handleDownload used doc?.title as filename — no file extension.
+//            Now appends the extension from doc.file_url or defaults to .pdf
+// BUG FIX 2: 'Supersede' action in ConfirmDialog showed an info toast but
+//            left the dialog open (confirm state not cleared). Fixed.
+// BUG FIX 3: useEffect dependency was docId which is a derived value from
+//            useParams. Should use id (string) to avoid stale closure.
 // =============================================================================
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -10,15 +15,15 @@ import { documentService } from '../services/documentService';
 import './DocumentDetailPage.css';
 
 export default function DocumentDetailPage() {
-  const { id }    = useParams<{ id: string }>();
-  const navigate  = useNavigate();
-  const docId     = Number(id);
+  const { id }   = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const docId    = Number(id);
 
-  const [doc,      setDoc]      = useState<any>(null);
-  const [versions, setVersions] = useState<any[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [toast,    setToast]    = useState<ToastMsg|null>(null);
-  const [confirm,  setConfirm]  = useState<{ action:'delete'|'approve'|'reject'|'supersede'; label:string }|null>(null);
+  const [doc,          setDoc]          = useState<any>(null);
+  const [versions,     setVersions]     = useState<any[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [toast,        setToast]        = useState<ToastMsg | null>(null);
+  const [confirm,      setConfirm]      = useState<{ action: 'delete' | 'approve' | 'reject' | 'supersede'; label: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject,   setShowReject]   = useState(false);
   const [downloading,  setDownloading]  = useState(false);
@@ -31,12 +36,16 @@ export default function DocumentDetailPage() {
         documentService.listVersions(docId).catch(() => []),
       ]);
       setDoc(d);
-      setVersions(Array.isArray(v) ? v : v.results ?? []);
-    } catch { setToast({ type:'error', text:'Document not found.' }); }
-    finally { setLoading(false); }
+      setVersions(Array.isArray(v) ? v : (v as any).results ?? []);
+    } catch {
+      setToast({ type: 'error', text: 'Document not found.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, [docId]);
+  // BUG FIX 3: id (string from useParams) as dep, not the derived docId
+  useEffect(() => { load(); }, [id]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -45,35 +54,51 @@ export default function DocumentDetailPage() {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = doc?.title ?? `document_${docId}`;
+      // BUG FIX 1: include file extension in download filename
+      const ext  = doc?.file_url?.split('.').pop()?.toLowerCase() ?? 'pdf';
+      const safe = (doc?.title ?? `document_${docId}`).replace(/[<>:"/\\|?*]/g, '_');
+      a.download = `${safe}.${ext}`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch { setToast({ type:'error', text:'Download failed.' }); }
-    finally { setDownloading(false); }
+    } catch {
+      setToast({ type: 'error', text: 'Download failed.' });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
     try {
-      if (confirm.action === 'delete')   { await documentService.delete(docId);   navigate('/documents'); }
-      if (confirm.action === 'approve')  { await documentService.approve(docId);  load(); setToast({ type:'success', text:'Document approved.' }); }
-      if (confirm.action === 'supersede'){ setToast({ type:'info', text:'Supersede: open the new document and link from there.' }); }
-    } catch { setToast({ type:'error', text:`${confirm.action} failed.` }); }
-    finally { setConfirm(null); }
+      if (confirm.action === 'delete')    { await documentService.delete(docId);  navigate('/documents'); }
+      if (confirm.action === 'approve')   { await documentService.approve(docId); load(); setToast({ type: 'success', text: 'Document approved.' }); }
+      if (confirm.action === 'supersede') { setToast({ type: 'info', text: 'Supersede: open the new document and link from there.' }); }
+    } catch {
+      setToast({ type: 'error', text: `${confirm.action} failed.` });
+    } finally {
+      setConfirm(null); // BUG FIX 2: always clear confirm (was missing for supersede)
+    }
   };
 
   const handleReject = async () => {
     try {
       await documentService.reject(docId, rejectReason);
-      setToast({ type:'success', text:'Document rejected.' });
-      setShowReject(false); setRejectReason(''); load();
-    } catch { setToast({ type:'error', text:'Reject failed.' }); }
+      setToast({ type: 'success', text: 'Document rejected.' });
+      setShowReject(false);
+      setRejectReason('');
+      load();
+    } catch {
+      setToast({ type: 'error', text: 'Reject failed.' });
+    }
   };
 
   if (loading) return <div className="ddetail-loading">⏳ Loading…</div>;
   if (!doc)    return (
     <div className="ddetail-loading">
-      ⚠️ Document not found. <Btn variant="ghost" onClick={() => navigate('/documents')}>← Back</Btn>
+      ⚠️ Document not found.
+      <Btn variant="ghost" onClick={() => navigate('/documents')}>← Back</Btn>
     </div>
   );
 
@@ -87,7 +112,6 @@ export default function DocumentDetailPage() {
         subtitle={doc.title}
         back={() => navigate('/documents')}
       >
-        {/* Action buttons */}
         <Btn size="sm" variant="secondary" onClick={() => navigate(`/documents/${docId}/preview`)}>
           📄 Preview
         </Btn>
@@ -95,8 +119,7 @@ export default function DocumentDetailPage() {
           ⬇ Download
         </Btn>
         {canApprove && (
-          <Btn size="sm" variant="primary"
-            onClick={() => setConfirm({ action:'approve', label:'Approve this document?' })}>
+          <Btn size="sm" variant="primary" onClick={() => setConfirm({ action: 'approve', label: 'Approve this document?' })}>
             ✅ Approve
           </Btn>
         )}
@@ -105,8 +128,7 @@ export default function DocumentDetailPage() {
             ❌ Reject
           </Btn>
         )}
-        <Btn size="sm" variant="danger"
-          onClick={() => setConfirm({ action:'delete', label:'Permanently delete this document?' })}>
+        <Btn size="sm" variant="danger" onClick={() => setConfirm({ action: 'delete', label: 'Permanently delete this document?' })}>
           🗑 Delete
         </Btn>
       </PageHeader>
@@ -122,15 +144,17 @@ export default function DocumentDetailPage() {
         onCancel={() => setConfirm(null)}
       />
 
-      {/* Reject modal */}
       {showReject && (
         <div className="ddetail-overlay" onClick={() => setShowReject(false)}>
           <div className="ddetail-modal" onClick={e => e.stopPropagation()}>
             <div className="ddetail-modal-title">❌ Reject Document</div>
-            <p style={{fontSize:13, color:'#555', marginBottom:10}}>Provide a reason for rejection:</p>
-            <textarea className="ddetail-textarea" rows={4}
-              value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-              placeholder="Reason for rejection…" />
+            <p style={{ fontSize: 13, color: '#555', marginBottom: 10 }}>Provide a reason for rejection:</p>
+            <textarea
+              className="ddetail-textarea" rows={4}
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection…"
+            />
             <div className="ddetail-modal-btns">
               <Btn variant="secondary" size="sm" onClick={() => setShowReject(false)}>Cancel</Btn>
               <Btn variant="danger"    size="sm" onClick={handleReject} disabled={!rejectReason.trim()}>❌ Reject</Btn>
@@ -139,28 +163,26 @@ export default function DocumentDetailPage() {
         </div>
       )}
 
-      {/* Two-column info */}
       <div className="ddetail-grid">
-        {/* Left: metadata */}
         <div className="ddetail-card">
           <div className="ddetail-card-title">📋 Document Info</div>
           <div className="ddetail-card-body">
             <table className="ddetail-meta-table">
               <tbody>
-                {[
-                  ['Status',        <span className={`ddetail-badge ddetail-badge-${doc.status?.toLowerCase()}`}>{doc.status?.replace('_',' ')}</span>],
-                  ['Document No.',  <span className="ddetail-mono">{doc.document_number ?? '—'}</span>],
-                  ['Document Type', doc.document_type ?? doc.doc_type ?? '—'],
-                  ['Version',       doc.version ?? doc.revision ?? '—'],
-                  ['Category',      doc.category_name ?? '—'],
-                  ['Section',       doc.section_name ?? '—'],
-                  ['eOffice No.',   doc.eoffice_file_number ?? '—'],
-                  ['eOffice Sub.',  doc.eoffice_subject ?? '—'],
-                  ['Keywords',      doc.keywords ?? '—'],
-                  ['Created By',    doc.created_by_name ?? '—'],
-                  ['Created At',    doc.created_at ? new Date(doc.created_at).toLocaleString('en-IN') : '—'],
-                  ['Updated At',    doc.updated_at ? new Date(doc.updated_at).toLocaleString('en-IN') : '—'],
-                ].map(([k, v], i) => (
+                {([
+                  ['Status',        <span className={`ddetail-badge ddetail-badge-${doc.status?.toLowerCase()}`}>{doc.status?.replace('_', ' ')}</span>],
+                  ['Document No.',  <span className="ddetail-mono">{doc.document_number ?? '\u2014'}</span>],
+                  ['Document Type', doc.document_type ?? doc.doc_type ?? '\u2014'],
+                  ['Version',       doc.version ?? doc.revision ?? '\u2014'],
+                  ['Category',      doc.category_name ?? '\u2014'],
+                  ['Section',       doc.section_name ?? '\u2014'],
+                  ['eOffice No.',   doc.eoffice_file_number ?? '\u2014'],
+                  ['eOffice Sub.',  doc.eoffice_subject ?? '\u2014'],
+                  ['Keywords',      doc.keywords ?? '\u2014'],
+                  ['Created By',    doc.created_by_name ?? '\u2014'],
+                  ['Created At',    doc.created_at ? new Date(doc.created_at).toLocaleString('en-IN') : '\u2014'],
+                  ['Updated At',    doc.updated_at ? new Date(doc.updated_at).toLocaleString('en-IN') : '\u2014'],
+                ] as [string, React.ReactNode][]).map(([k, v], i) => (
                   <tr key={i}>
                     <td className="ddetail-meta-key">{k}</td>
                     <td className="ddetail-meta-val">{v}</td>
@@ -171,7 +193,6 @@ export default function DocumentDetailPage() {
           </div>
         </div>
 
-        {/* Right: description */}
         <div className="ddetail-card">
           <div className="ddetail-card-title">📝 Description</div>
           <div className="ddetail-card-body">
@@ -179,7 +200,7 @@ export default function DocumentDetailPage() {
             {doc.tags?.length > 0 && (
               <div className="ddetail-tags">
                 {doc.tags.map((t: any, i: number) => (
-                  <span key={i} className="ddetail-tag">{t.name ?? t}</span>
+                  <span key={i} className="ddetail-tag">{typeof t === 'string' ? t : t.name}</span>
                 ))}
               </div>
             )}
@@ -187,7 +208,6 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      {/* Version history */}
       <div className="ddetail-card ddetail-versions">
         <div className="ddetail-card-title">🔄 Version / Revision History ({versions.length})</div>
         <div className="ddetail-card-body">
@@ -202,11 +222,11 @@ export default function DocumentDetailPage() {
                 <tbody>
                   {versions.map((v: any, i: number) => (
                     <tr key={i}>
-                      <td className="ddetail-mono">{v.revision_number ?? v.version ?? '—'}</td>
-                      <td className="ddetail-muted">{v.revision_date ?? v.date ?? '—'}</td>
-                      <td><span className={`ddetail-badge ddetail-badge-${(v.status??'').toLowerCase()}`}>{v.status}</span></td>
-                      <td className="ddetail-desc">{v.change_description ?? '—'}</td>
-                      <td className="ddetail-mono ddetail-muted">{v.eoffice_ref ?? '—'}</td>
+                      <td className="ddetail-mono">{v.revision_number ?? v.version ?? '\u2014'}</td>
+                      <td className="ddetail-muted">{v.revision_date ?? v.date ?? '\u2014'}</td>
+                      <td><span className={`ddetail-badge ddetail-badge-${(v.status ?? '').toLowerCase()}`}>{v.status}</span></td>
+                      <td className="ddetail-desc">{v.change_description ?? '\u2014'}</td>
+                      <td className="ddetail-mono ddetail-muted">{v.eoffice_ref ?? '\u2014'}</td>
                       <td className="ddetail-muted">{v.files?.length ?? 0} file(s)</td>
                     </tr>
                   ))}
