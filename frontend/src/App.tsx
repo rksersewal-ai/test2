@@ -1,5 +1,12 @@
 // =============================================================================
-// FILE: frontend/src/App.tsx  (Phase 1 complete — all pages wired)
+// FILE: frontend/src/App.tsx
+// FIX: Wired 3 missing Work Ledger sub-routes that existed as pages but were
+//      never registered in React Router — making them completely unreachable.
+//   Added:
+//     /work-ledger/new           → WorkLedgerEntryPage (create)
+//     /work-ledger/:workId/edit  → WorkLedgerEntryPage (edit)
+//     /work-ledger/kpi-report    → MonthlyKpiReportPage
+//     /work-ledger/activity      → WorkActivityReportPage
 // =============================================================================
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
@@ -18,6 +25,9 @@ import PrototypeInspectionPage from './pages/PrototypeInspectionPage';
 import SettingsPage            from './pages/SettingsPage';
 import PLMasterPage            from './pages/PLMaster/PLMasterPage';
 import WorkLedgerPage          from './pages/WorkLedger/WorkLedgerPage';
+import WorkLedgerEntryPage     from './pages/work-ledger/WorkLedgerEntryPage';
+import MonthlyKpiReportPage    from './pages/work-ledger/MonthlyKpiReportPage';
+import WorkActivityReportPage  from './pages/work-ledger/WorkActivityReportPage';
 import SDRList                 from './pages/SDR/SDRList';
 import SDRCreatePage           from './pages/SDR/SDRCreatePage';
 import SDREditPage             from './pages/SDR/SDREditPage';
@@ -42,7 +52,7 @@ export default function App() {
         }
       >
         {/* Core */}
-        <Route index       element={<DashboardPage />} />
+        <Route index         element={<DashboardPage />} />
         <Route path="search" element={<SpotlightSearchPage />} />
 
         {/* Documents */}
@@ -63,9 +73,15 @@ export default function App() {
         <Route path="pl-master/*"          element={<PLMasterPage />} />
         <Route path="master-data"          element={<MasterDataPage />} />
 
+        {/* Work Ledger — main list + sub-routes (FIX: 3 routes were missing) */}
+        <Route path="work-ledger"               element={<WorkLedgerPage />} />
+        <Route path="work-ledger/new"            element={<WorkLedgerEntryPage />} />
+        <Route path="work-ledger/:workId/edit"   element={<WorkLedgerEntryPage />} />
+        <Route path="work-ledger/kpi-report"     element={<MonthlyKpiReportPage />} />
+        <Route path="work-ledger/activity"       element={<WorkActivityReportPage />} />
+
         {/* Operations */}
-        <Route path="work-ledger" element={<WorkLedgerPage />} />
-        <Route path="ocr-queue"   element={<OCRQueuePage />} />
+        <Route path="ocr-queue" element={<OCRQueuePage />} />
 
         {/* Admin */}
         <Route path="audit"    element={<AuditLogPage />} />
