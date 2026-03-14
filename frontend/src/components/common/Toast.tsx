@@ -1,30 +1,21 @@
 // =============================================================================
-// Toast — transient success/error/info notification (top-right)
-// Usage:
-//   const [toast, setToast] = useState<ToastMsg | null>(null);
-//   setToast({ type: 'success', text: 'Saved!' });
-//   <Toast msg={toast} onClose={() => setToast(null)} />
+// FILE: frontend/src/components/common/Toast.tsx
 // =============================================================================
 import React, { useEffect } from 'react';
 import './Toast.css';
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning';
-export interface ToastMsg { type: ToastType; text: string; }
+export interface ToastMsg {
+  type: 'success' | 'error' | 'info' | 'warning';
+  text: string;
+}
 
-const ICONS: Record<ToastType, string> = {
-  success: '✓',
-  error:   '✕',
-  info:    'ℹ',
-  warning: '⚠',
-};
-
-export default function Toast({
-  msg, onClose, duration = 3500,
-}: {
+interface Props {
   msg: ToastMsg | null;
   onClose: () => void;
   duration?: number;
-}) {
+}
+
+export default function Toast({ msg, onClose, duration = 3500 }: Props) {
   useEffect(() => {
     if (!msg) return;
     const t = setTimeout(onClose, duration);
@@ -32,11 +23,16 @@ export default function Toast({
   }, [msg, duration, onClose]);
 
   if (!msg) return null;
+
   return (
-    <div className={`toast toast-${msg.type}`}>
-      <span className="toast-icon">{ICONS[msg.type]}</span>
+    <div className={`toast toast--${msg.type}`}>
+      <span className="toast-icon">
+        {msg.type === 'success' ? '\u2705' :
+         msg.type === 'error'   ? '\u274c' :
+         msg.type === 'warning' ? '\u26a0\ufe0f' : '\u2139\ufe0f'}
+      </span>
       <span className="toast-text">{msg.text}</span>
-      <button className="toast-close" onClick={onClose}>✕</button>
+      <button className="toast-close" onClick={onClose}>\u2715</button>
     </div>
   );
 }

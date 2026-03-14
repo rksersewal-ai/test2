@@ -1,8 +1,12 @@
-// Barrel export — import any common control from here
+// =============================================================================
+// FILE: frontend/src/components/common/index.ts  (barrel — single import point)
+// =============================================================================
 export { default as Btn }           from './Btn';
 export { default as PageHeader }    from './PageHeader';
-export { default as ConfirmDialog } from './ConfirmDialog';
-export { default as Toast }         from './Toast';
 export { default as SearchBar }     from './SearchBar';
-export type { BtnVariant, BtnSize } from './Btn';
-export type { ToastMsg, ToastType } from './Toast';
+export { default as Toast }         from './Toast';
+export { default as ConfirmDialog } from './ConfirmDialog';
+export { default as DropdownSelect} from './DropdownSelect';
+
+// Shared types
+export type { ToastMsg } from './Toast';

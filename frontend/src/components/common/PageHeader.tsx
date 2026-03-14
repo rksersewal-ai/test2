@@ -1,36 +1,30 @@
 // =============================================================================
-// PageHeader — standard top bar used on every list/detail page
-// Usage:
-//   <PageHeader title="Documents" subtitle="All controlled drawings">
-//     <Btn onClick={...}>+ New</Btn>
-//     <Btn variant="secondary" onClick={...}>Export</Btn>
-//   </PageHeader>
+// FILE: frontend/src/components/common/PageHeader.tsx
+// Supports: title, subtitle, back() callback, children (action buttons)
 // =============================================================================
 import React from 'react';
 import './PageHeader.css';
 
 interface Props {
-  title:     string;
+  title: string;
   subtitle?: string;
-  back?:     () => void;    // show ← Back button if provided
-  children?: React.ReactNode; // action buttons injected here
+  back?: () => void;
+  children?: React.ReactNode;
 }
 
 export default function PageHeader({ title, subtitle, back, children }: Props) {
   return (
-    <div className="page-header">
-      <div className="page-header-left">
+    <div className="ph-wrap">
+      <div className="ph-left">
         {back && (
-          <button className="back-btn" onClick={back} title="Go back">
-            ← Back
-          </button>
+          <button className="ph-back" onClick={back}>← Back</button>
         )}
         <div>
-          <h2 className="page-title">{title}</h2>
-          {subtitle && <p className="page-subtitle">{subtitle}</p>}
+          <h1 className="ph-title">{title}</h1>
+          {subtitle && <p className="ph-sub">{subtitle}</p>}
         </div>
       </div>
-      {children && <div className="page-header-actions">{children}</div>}
+      {children && <div className="ph-actions">{children}</div>}
     </div>
   );
 }

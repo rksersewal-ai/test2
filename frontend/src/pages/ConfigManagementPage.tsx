@@ -1,17 +1,12 @@
 // =============================================================================
-// FILE: frontend/src/pages/ConfigManagementPage.tsx
+// FILE: frontend/src/pages/ConfigManagementPage.tsx  (Phase 4 — import fix)
 // Real-API Config Management: Loco Configs tab + ECN Register tab
 // =============================================================================
 import React, { useState, useEffect, useCallback } from 'react';
-import { PageHeader, Btn, SearchBar, ConfirmDialog, Toast } from './common_import';
-import type { ToastMsg } from './common_import';
+import { PageHeader, Btn, SearchBar, ConfirmDialog, Toast } from '../components/common';
+import type { ToastMsg } from '../components/common';
 import { configService } from '../services/configService';
 import './ConfigManagementPage.css';
-
-// Re-export helper so we avoid circular imports from common/index
-import { Btn as BtnC, PageHeader as PHC, SearchBar as SBC,
-         ConfirmDialog as CDC, Toast as TC } from '../components/common';
-const _Btn = BtnC, _PH = PHC, _SB = SBC, _CD = CDC, _T = TC;
 
 type CTab = 'configs' | 'ecn';
 
@@ -24,7 +19,7 @@ export default function ConfigManagementPage() {
   const [tab, setTab] = useState<CTab>('configs');
   return (
     <div className="cfg-page">
-      <_PH title="Configuration Management" subtitle="Loco configurations, ECN register, BOM change history" />
+      <PageHeader title="Configuration Management" subtitle="Loco configurations, ECN register, BOM change history" />
       <div className="cfg-tabs">
         <button className={`cfg-tab${tab==='configs'?' cfg-tab--active':''}`} onClick={() => setTab('configs')}>⚙️ Loco Configs</button>
         <button className={`cfg-tab${tab==='ecn'?' cfg-tab--active':''}`} onClick={() => setTab('ecn')}>📋 ECN Register</button>
@@ -38,16 +33,16 @@ export default function ConfigManagementPage() {
 
 // ─── Loco Configs Tab ──────────────────────────────────────────────────────────────
 function LocoConfigsTab() {
-  const [items,   setItems]   = useState<any[]>([]);
-  const [total,   setTotal]   = useState(0);
-  const [page,    setPage]    = useState(1);
-  const [search,  setSearch]  = useState('');
-  const [loading, setLoading] = useState(false);
-  const [toast,   setToast]   = useState<ToastMsg|null>(null);
-  const [confirm, setConfirm] = useState<number|null>(null);
+  const [items,    setItems]    = useState<any[]>([]);
+  const [total,    setTotal]    = useState(0);
+  const [page,     setPage]     = useState(1);
+  const [search,   setSearch]   = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [toast,    setToast]    = useState<ToastMsg|null>(null);
+  const [confirm,  setConfirm]  = useState<number|null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<any|null>(null);
-  const [locoFilter, setLocoFilter] = useState('');
+  const [locoFilter,   setLocoFilter]   = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const PAGE_SIZE = 20;
 
@@ -57,21 +52,21 @@ function LocoConfigsTab() {
     setLoading(true);
     try {
       const p: Record<string,string> = { page: String(page), page_size: String(PAGE_SIZE) };
-      if (search)      p.search     = search;
-      if (locoFilter)  p.loco_class = locoFilter;
-      if (statusFilter) p.status    = statusFilter;
+      if (search)       p.search     = search;
+      if (locoFilter)   p.loco_class = locoFilter;
+      if (statusFilter) p.status     = statusFilter;
       const data = await configService.listConfigs(p);
       setItems(data.results ?? data ?? []);
       setTotal(data.count ?? data.total_count ?? 0);
     } catch { setToast({ type:'error', text:'Failed to load configurations.' }); }
-    finally { setLoading(false); }
+    finally  { setLoading(false); }
   }, [page, search, locoFilter, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async () => {
     if (!confirm) return;
-    try { await configService.deleteConfig(confirm); setToast({ type:'success', text:'Config deleted.' }); load(); }
+    try   { await configService.deleteConfig(confirm); setToast({ type:'success', text:'Config deleted.' }); load(); }
     catch { setToast({ type:'error', text:'Delete failed.' }); }
     finally { setConfirm(null); }
   };
@@ -80,24 +75,22 @@ function LocoConfigsTab() {
 
   return (
     <div>
-      <_T msg={toast} onClose={() => setToast(null)} />
-      <_CD open={!!confirm} title="Delete Config"
+      <Toast msg={toast} onClose={() => setToast(null)} />
+      <ConfirmDialog open={!!confirm} title="Delete Config"
         message="Delete this loco configuration record? This cannot be undone."
         confirmLabel="Delete" onConfirm={handleDelete} onCancel={() => setConfirm(null)} />
 
       {showForm && (
         <ConfigForm
-          item={editItem}
-          locoTypes={LOCO_TYPES}
+          item={editItem} locoTypes={LOCO_TYPES}
           onClose={() => { setShowForm(false); setEditItem(null); }}
-          onSuccess={(msg) => { setShowForm(false); setEditItem(null); setToast({ type:'success', text: msg }); load(); }}
+          onSuccess={msg => { setShowForm(false); setEditItem(null); setToast({ type:'success', text: msg }); load(); }}
         />
       )}
 
-      {/* Toolbar */}
       <div className="cfg-toolbar">
-        <_SB value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search serial no, ECN ref…" width={260} />
-        <select className="cfg-select" value={locoFilter} onChange={e => { setLocoFilter(e.target.value); setPage(1); }}>
+        <SearchBar value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search serial no, ECN ref…" width={260} />
+        <select className="cfg-select" value={locoFilter}   onChange={e => { setLocoFilter(e.target.value);   setPage(1); }}>
           <option value="">All Loco Types</option>
           {LOCO_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -107,11 +100,10 @@ function LocoConfigsTab() {
           <option value="PENDING">Pending</option>
           <option value="SUPERSEDED">Superseded</option>
         </select>
-        <_Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</_Btn>
-        <_Btn size="sm" onClick={() => { setEditItem(null); setShowForm(true); }}>+ New Config</_Btn>
+        <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
+        <Btn size="sm" onClick={() => { setEditItem(null); setShowForm(true); }}>+ New Config</Btn>
       </div>
 
-      {/* Table */}
       <div className="cfg-table-wrap">
         <table className="cfg-table">
           <thead><tr>
@@ -124,18 +116,16 @@ function LocoConfigsTab() {
             {!loading && items.length===0 && <tr><td colSpan={8} className="cfg-center cfg-muted">No configurations found.</td></tr>}
             {items.map(c => (
               <tr key={c.id}>
-                <td><span className="cfg-badge cfg-badge-blue">{c.loco_class ?? c.locoClass}</span></td>
-                <td className="cfg-mono">{c.serial_no ?? c.serialNo}</td>
-                <td className="cfg-mono cfg-purple">{c.config_version ?? c.configVersion}</td>
-                <td className="cfg-mono cfg-gold">{c.ecn_ref ?? c.changeRef ?? '—'}</td>
-                <td className="cfg-muted">{c.effective_date ?? c.effectiveDate ?? '—'}</td>
-                <td className="cfg-muted">{c.changed_by ?? c.changedBy ?? '—'}</td>
+                <td><span className="cfg-badge cfg-badge-blue">{c.loco_class}</span></td>
+                <td className="cfg-mono">{c.serial_no}</td>
+                <td className="cfg-mono cfg-purple">{c.config_version}</td>
+                <td className="cfg-mono cfg-gold">{c.ecn_ref ?? '—'}</td>
+                <td className="cfg-muted">{c.effective_date ?? '—'}</td>
+                <td className="cfg-muted">{c.changed_by ?? '—'}</td>
                 <td><span className={`cfg-badge ${STATUS_CLS[c.status] ?? ''}`}>{c.status}</span></td>
                 <td className="cfg-actions">
-                  <_Btn size="sm" variant="ghost"
-                    onClick={() => { setEditItem(c); setShowForm(true); }}>✏️ Edit</_Btn>
-                  <_Btn size="sm" variant="danger"
-                    onClick={() => setConfirm(c.id)}>🗑</_Btn>
+                  <Btn size="sm" variant="ghost"  onClick={() => { setEditItem(c); setShowForm(true); }}>✏️ Edit</Btn>
+                  <Btn size="sm" variant="danger" onClick={() => setConfirm(c.id)}>🗑</Btn>
                 </td>
               </tr>
             ))}
@@ -146,9 +136,9 @@ function LocoConfigsTab() {
       <div className="cfg-pagination">
         <span className="cfg-muted">{total} configs total</span>
         <div className="cfg-page-btns">
-          <_Btn size="sm" variant="secondary" disabled={page<=1} onClick={() => setPage(p=>p-1)}>← Prev</_Btn>
+          <Btn size="sm" variant="secondary" disabled={page<=1}          onClick={() => setPage(p=>p-1)}>← Prev</Btn>
           <span>Page {page} / {totalPages||1}</span>
-          <_Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</_Btn>
+          <Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</Btn>
         </div>
       </div>
     </div>
@@ -174,13 +164,13 @@ function ECNTab() {
       setItems(data.results ?? data ?? []);
       setTotal(data.count ?? data.total_count ?? 0);
     } catch { setToast({ type:'error', text:'Failed to load ECN records.' }); }
-    finally { setLoading(false); }
+    finally  { setLoading(false); }
   }, [page, search]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleApprove = async (id: number) => {
-    try { await configService.approveECN(id); setToast({ type:'success', text:'ECN approved.' }); load(); }
+    try   { await configService.approveECN(id); setToast({ type:'success', text:'ECN approved.' }); load(); }
     catch { setToast({ type:'error', text:'Approve failed.' }); }
   };
 
@@ -188,11 +178,11 @@ function ECNTab() {
 
   return (
     <div>
-      <_T msg={toast} onClose={() => setToast(null)} />
+      <Toast msg={toast} onClose={() => setToast(null)} />
       <div className="cfg-toolbar">
-        <_SB value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search ECN number, subject…" width={300} />
-        <_Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</_Btn>
-        <_Btn size="sm" onClick={() => {}}>+ New ECN</_Btn>
+        <SearchBar value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search ECN number, subject…" width={300} />
+        <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
+        <Btn size="sm" onClick={() => {}}>+ New ECN</Btn>
       </div>
 
       <div className="cfg-table-wrap">
@@ -214,9 +204,9 @@ function ECNTab() {
                 <td><span className={`cfg-badge ${STATUS_CLS[e.status] ?? ''}`}>{e.status}</span></td>
                 <td className="cfg-actions">
                   {e.status === 'PENDING' && (
-                    <_Btn size="sm" variant="primary" onClick={() => handleApprove(e.id)}>✓ Approve</_Btn>
+                    <Btn size="sm" variant="primary" onClick={() => handleApprove(e.id)}>✓ Approve</Btn>
                   )}
-                  <_Btn size="sm" variant="ghost">👁 View</_Btn>
+                  <Btn size="sm" variant="ghost">👁 View</Btn>
                 </td>
               </tr>
             ))}
@@ -227,9 +217,9 @@ function ECNTab() {
       <div className="cfg-pagination">
         <span className="cfg-muted">{total} ECN records</span>
         <div className="cfg-page-btns">
-          <_Btn size="sm" variant="secondary" disabled={page<=1} onClick={() => setPage(p=>p-1)}>← Prev</_Btn>
+          <Btn size="sm" variant="secondary" disabled={page<=1}          onClick={() => setPage(p=>p-1)}>← Prev</Btn>
           <span>Page {page} / {totalPages||1}</span>
-          <_Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</_Btn>
+          <Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</Btn>
         </div>
       </div>
     </div>
@@ -243,14 +233,14 @@ function ConfigForm({ item, locoTypes, onClose, onSuccess }:{
 }) {
   const isEdit = !!item;
   const [form, setForm] = useState({
-    loco_class:      item?.loco_class ?? item?.locoClass ?? '',
-    serial_no:       item?.serial_no ?? item?.serialNo ?? '',
-    config_version:  item?.config_version ?? item?.configVersion ?? '',
-    ecn_ref:         item?.ecn_ref ?? item?.changeRef ?? '',
-    effective_date:  item?.effective_date ?? item?.effectiveDate ?? '',
-    changed_by:      item?.changed_by ?? item?.changedBy ?? '',
-    status:          item?.status ?? 'PENDING',
-    remarks:         item?.remarks ?? '',
+    loco_class:     item?.loco_class     ?? '',
+    serial_no:      item?.serial_no      ?? '',
+    config_version: item?.config_version ?? '',
+    ecn_ref:        item?.ecn_ref        ?? '',
+    effective_date: item?.effective_date ?? '',
+    changed_by:     item?.changed_by     ?? '',
+    status:         item?.status         ?? 'PENDING',
+    remarks:        item?.remarks        ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string,string>>({});
@@ -259,9 +249,9 @@ function ConfigForm({ item, locoTypes, onClose, onSuccess }:{
 
   const validate = () => {
     const e: Record<string,string> = {};
-    if (!form.loco_class)     e.loco_class    = 'Required';
-    if (!form.serial_no)      e.serial_no     = 'Required';
-    if (!form.config_version) e.config_version= 'Required';
+    if (!form.loco_class)     e.loco_class     = 'Required';
+    if (!form.serial_no)      e.serial_no      = 'Required';
+    if (!form.config_version) e.config_version = 'Required';
     setErrors(e); return Object.keys(e).length === 0;
   };
 
@@ -297,7 +287,7 @@ function ConfigForm({ item, locoTypes, onClose, onSuccess }:{
             </div>
             <div className="cfg-field">
               <label>Serial No. <span className="cfg-req">*</span></label>
-              <input value={form.serial_no} onChange={e => sf('serial_no', e.target.value)} placeholder="e.g. 31001" />
+              <input value={form.serial_no} onChange={e => sf('serial_no', e.target.value)} placeholder="31001" />
               {errors.serial_no && <span className="cfg-err">{errors.serial_no}</span>}
             </div>
             <div className="cfg-field">
@@ -333,10 +323,10 @@ function ConfigForm({ item, locoTypes, onClose, onSuccess }:{
           </div>
         </div>
         <div className="cfg-modal-footer">
-          <_Btn variant="secondary" onClick={onClose} disabled={saving}>Cancel</_Btn>
-          <_Btn variant="primary" onClick={handleSave} loading={saving}>
+          <Btn variant="secondary" onClick={onClose} disabled={saving}>Cancel</Btn>
+          <Btn variant="primary"   onClick={handleSave} loading={saving}>
             {isEdit ? '💾 Save Changes' : '➕ Create Config'}
-          </_Btn>
+          </Btn>
         </div>
       </div>
     </div>

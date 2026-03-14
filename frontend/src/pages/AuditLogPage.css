@@ -1,0 +1,36 @@
+/* Audit Log Page */
+.al-page { display:flex; flex-direction:column; height:100%; }
+
+.al-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 24px; border-bottom:1px solid #eee; }
+.al-select  { padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit; }
+.al-date    { padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit; width:130px; }
+
+.al-table-wrap { overflow-x:auto; padding:16px 24px 0; }
+.al-table { width:100%; border-collapse:collapse; font-size:13px; border-radius:8px; overflow:hidden; border:1px solid #e0e6ef; }
+.al-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-size:11px; font-weight:700; }
+.al-table td { padding:7px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+.al-row { cursor:pointer; transition:background .1s; }
+.al-row:hover, .al-row--expanded { background:#f0f5ff; }
+.al-center { text-align:center; }
+.al-muted  { color:#888; font-size:12px; }
+.al-mono   { font-family:monospace; }
+.al-user   { font-weight:600; color:#003366; font-size:12px; }
+.al-obj    { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+
+/* Badges */
+.al-badge          { padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; }
+.al-badge-create   { background:#d1fae5; color:#065f46; }
+.al-badge-update   { background:#dbeafe; color:#1e40af; }
+.al-badge-delete   { background:#fee2e2; color:#991b1b; }
+.al-badge-view     { background:#f1f5f9; color:#475569; }
+.al-badge-approve  { background:#d1fae5; color:#065f46; }
+.al-badge-reject   { background:#fee2e2; color:#991b1b; }
+.al-badge-login    { background:#fef3c7; color:#92400e; }
+.al-badge-logout   { background:#f1f5f9; color:#6b7280; }
+
+/* Expandable detail */
+.al-detail-row td { background:#f8fafc; padding:0; }
+.al-changes-pre   { margin:0; padding:12px 24px; font-size:11px; font-family:monospace; color:#334; white-space:pre-wrap; max-height:200px; overflow-y:auto; }
+
+.al-pagination { display:flex; justify-content:space-between; align-items:center; padding:12px 24px; }
+.al-page-btns  { display:flex; align-items:center; gap:8px; font-size:13px; }
