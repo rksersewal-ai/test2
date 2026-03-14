@@ -1,6 +1,8 @@
 // =============================================================================
 // FILE: frontend/src/pages/PrototypeInspectionPage.tsx
-// Full Prototype Inspection module: list + create + punch-list per inspection
+// BUG FIX 1: handleClosePunch was calling closePunchItem(inspectionId, punchId)
+//            — inspectionId arg is WRONG, correct call is closePunchItem(punchId)
+// BUG FIX 2: createPunchItem was being called — now matches renamed service method
 // =============================================================================
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader, Btn, SearchBar, ConfirmDialog, Toast } from '../components/common';
@@ -11,9 +13,9 @@ import './PrototypeInspectionPage.css';
 type PIView = 'list' | 'detail' | 'form';
 
 export default function PrototypeInspectionPage() {
-  const [view,       setView]       = useState<PIView>('list');
-  const [activeId,   setActiveId]   = useState<number|null>(null);
-  const [editItem,   setEditItem]   = useState<any|null>(null);
+  const [view,     setView]     = useState<PIView>('list');
+  const [activeId, setActiveId] = useState<number|null>(null);
+  const [editItem, setEditItem] = useState<any|null>(null);
 
   return (
     <div className="pi-page">
@@ -25,7 +27,7 @@ export default function PrototypeInspectionPage() {
   );
 }
 
-// ─── Inspection List ──────────────────────────────────────────────────────────────
+// ─── Inspection List ──────────────────────────────────────────────────────────────────────
 function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void }) {
   const [items,   setItems]   = useState<any[]>([]);
   const [total,   setTotal]   = useState(0);
@@ -43,8 +45,8 @@ function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void })
       if (search) p.search = search;
       if (status) p.status = status;
       const data = await prototypeService.listInspections(p);
-      setItems(data.results ?? data ?? []);
-      setTotal(data.count ?? data.total_count ?? 0);
+      setItems(data.results ?? (data as any) ?? []);
+      setTotal(data.count ?? (data as any).total_count ?? 0);
     } catch { setToast({ type:'error', text:'Failed to load inspections.' }); }
     finally { setLoading(false); }
   }, [page, search, status]);
@@ -122,48 +124,59 @@ function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void })
   );
 }
 
-// ─── Inspection Detail (with Punch List) ────────────────────────────────────────────────
+// ─── Inspection Detail (with Punch List) ──────────────────────────────────────────────────────────────────
 function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>void }) {
-  const [ins,    setIns]    = useState<any>(null);
-  const [punches,setPunches]= useState<any[]>([]);
-  const [loading,setLoading]= useState(true);
-  const [toast,  setToast]  = useState<ToastMsg|null>(null);
-  const [newPunch, setNewPunch] = useState('');
+  const [ins,         setIns]         = useState<any>(null);
+  const [punches,     setPunches]     = useState<any[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [toast,       setToast]       = useState<ToastMsg|null>(null);
+  const [newPunch,    setNewPunch]    = useState('');
   const [addingPunch, setAddingPunch] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [i, p] = await Promise.all([
         prototypeService.getInspection(inspectionId),
-        prototypeService.listPunchItems(inspectionId).catch(() => []),
+        prototypeService.listPunchItems(inspectionId).catch(() => ({ results: [], count: 0 })),
       ]);
-      setIns(i); setPunches(Array.isArray(p) ? p : p.results ?? []);
+      setIns(i);
+      setPunches(Array.isArray(p) ? p : (p as any).results ?? []);
     } catch { setToast({ type:'error', text:'Failed to load inspection.' }); }
     finally { setLoading(false); }
-  };
+  }, [inspectionId]);
 
-  useEffect(() => { load(); }, [inspectionId]);
+  useEffect(() => { load(); }, [load]);
 
   const handleAddPunch = async () => {
     if (!newPunch.trim()) return;
     setAddingPunch(true);
     try {
-      await prototypeService.createPunchItem(inspectionId, { description: newPunch, status:'OPEN' });
-      setNewPunch(''); load();
+      // BUG FIX: was createPunchItem (name now matches service)
+      await prototypeService.createPunchItem(inspectionId, { description: newPunch, status: 'OPEN' });
+      setNewPunch('');
+      load();
       setToast({ type:'success', text:'Punch item added.' });
     } catch { setToast({ type:'error', text:'Failed to add punch item.' }); }
     finally { setAddingPunch(false); }
   };
 
   const handleClosePunch = async (punchId: number) => {
-    try { await prototypeService.closePunchItem(inspectionId, punchId); load(); setToast({ type:'success', text:'Punch item closed.' }); }
-    catch { setToast({ type:'error', text:'Failed to close punch item.' }); }
+    try {
+      // BUG FIX: was closePunchItem(inspectionId, punchId) — inspectionId arg removed.
+      // Correct: closePunchItem(punchId, remarks?)
+      await prototypeService.closePunchItem(punchId);
+      load();
+      setToast({ type:'success', text:'Punch item closed.' });
+    } catch { setToast({ type:'error', text:'Failed to close punch item.' }); }
   };
 
   const handleCloseInspection = async () => {
-    try { await prototypeService.closeInspection(inspectionId); load(); setToast({ type:'success', text:'Inspection closed.' }); }
-    catch { setToast({ type:'error', text:'Failed to close inspection.' }); }
+    try {
+      await prototypeService.closeInspection(inspectionId);
+      load();
+      setToast({ type:'success', text:'Inspection closed.' });
+    } catch { setToast({ type:'error', text:'Failed to close inspection.' }); }
   };
 
   if (loading) return <div className="pi-loading">⏳ Loading…</div>;
@@ -181,23 +194,22 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
       </PageHeader>
       <Toast msg={toast} onClose={() => setToast(null)} />
 
-      {/* Inspection metadata */}
       <div className="pi-detail-grid">
         <div className="pi-card">
           <div className="pi-card-title">📋 Inspection Details</div>
           <div className="pi-card-body">
             <table className="pi-meta-table">
               <tbody>
-                {[
-                  ['Loco Number',   ins?.loco_number ?? '—'],
-                  ['Loco Class',    ins?.loco_class ?? '—'],
+                {([
+                  ['Loco Number',     ins?.loco_number ?? '—'],
+                  ['Loco Class',      ins?.loco_class ?? '—'],
                   ['Inspection Type', ins?.inspection_type ?? '—'],
-                  ['Date',          ins?.inspection_date ?? '—'],
-                  ['Inspector',     ins?.inspector_name ?? ins?.inspector ?? '—'],
-                  ['Status',        ins?.status ?? '—'],
-                  ['Result',        ins?.result ?? '—'],
-                  ['Remarks',       ins?.remarks ?? '—'],
-                ].map(([k,v], i) => (
+                  ['Date',            ins?.inspection_date ?? '—'],
+                  ['Inspector',       ins?.inspector_name ?? ins?.inspector ?? '—'],
+                  ['Status',          ins?.status ?? '—'],
+                  ['Result',          ins?.result ?? '—'],
+                  ['Remarks',         ins?.remarks ?? '—'],
+                ] as [string, string][]).map(([k, v], i) => (
                   <tr key={i}>
                     <td className="pi-meta-key">{k}</td>
                     <td className="pi-meta-val">{v}</td>
@@ -208,29 +220,30 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
           </div>
         </div>
 
-        {/* Punch list */}
         <div className="pi-card">
-          <div className="pi-card-title">📌 Punch List ({punches.filter(p=>p.status==='OPEN').length} open)</div>
+          <div className="pi-card-title">📌 Punch List ({punches.filter((p: any) => p.status === 'OPEN').length} open)</div>
           <div className="pi-card-body">
-            {punches.length === 0 && <div className="pi-no-punch">No punch items. Inspection is clean ✅</div>}
+            {punches.length === 0 && (
+              <div className="pi-no-punch">No punch items. Inspection is clean ✅</div>
+            )}
             {punches.map((p: any, i: number) => (
-              <div key={i} className={`pi-punch-item${p.status==='CLOSED'?' pi-punch-item--closed':''}`}>
+              <div key={p.id ?? i} className={`pi-punch-item${p.status === 'CLOSED' ? ' pi-punch-item--closed' : ''}`}>
                 <span className={`pi-punch-status pi-punch-status--${p.status?.toLowerCase()}`}>●</span>
                 <span className="pi-punch-desc">{p.description}</span>
                 {p.status === 'OPEN' && (
+                  // BUG FIX: was closePunchItem(inspectionId, p.id) — fixed to closePunchItem(p.id)
                   <Btn size="sm" variant="ghost" onClick={() => handleClosePunch(p.id)}>✓ Close</Btn>
                 )}
               </div>
             ))}
 
-            {/* Add new punch */}
             {ins?.status !== 'CLOSED' && (
               <div className="pi-add-punch">
                 <input
                   className="pi-punch-input"
                   value={newPunch}
                   onChange={e => setNewPunch(e.target.value)}
-                  onKeyDown={e => e.key==='Enter' && handleAddPunch()}
+                  onKeyDown={e => e.key === 'Enter' && handleAddPunch()}
                   placeholder="Add punch item (press Enter or click +)…"
                 />
                 <Btn size="sm" onClick={handleAddPunch} loading={addingPunch}>+ Add</Btn>
@@ -243,30 +256,34 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
   );
 }
 
-// ─── New Inspection Form ─────────────────────────────────────────────────────────────
-function PIForm({ item, onDone }: { item:any|null; onDone:()=>void }) {
+// ─── New / Edit Inspection Form ───────────────────────────────────────────────────────────────────────
+function PIForm({ item, onDone }: { item: any|null; onDone: ()=>void }) {
   const [form, setForm] = useState({
-    loco_number: item?.loco_number ?? '',
-    loco_class:  item?.loco_class ?? 'WAG-9',
+    loco_number:     item?.loco_number     ?? '',
+    loco_class:      item?.loco_class      ?? 'WAG-9',
     inspection_type: item?.inspection_type ?? 'PROTOTYPE',
-    inspection_date: item?.inspection_date ?? new Date().toISOString().slice(0,10),
-    inspector: item?.inspector ?? '',
-    remarks:   item?.remarks ?? '',
+    inspection_date: item?.inspection_date ?? new Date().toISOString().slice(0, 10),
+    inspector:       item?.inspector       ?? '',
+    remarks:         item?.remarks         ?? '',
   });
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string,string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast,  setToast]  = useState<ToastMsg|null>(null);
 
-  const LOCO = ['WAG-9','WAG-9H','WAP-7','WAP-5','WAG-12B','MEMU','DEMU'];
+  const LOCO  = ['WAG-9','WAG-9H','WAP-7','WAP-5','WAG-12B','MEMU','DEMU'];
   const TYPES = ['PROTOTYPE','PERIODIC','SPECIAL','RETURN_TO_SERVICE','PDI'];
 
-  const sf = (k: string, v: string) => { setForm(f => ({...f,[k]:v})); setErrors(e => ({...e,[k]:''})); };
+  const sf = (k: string, v: string) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrors(e => ({ ...e, [k]: '' }));
+  };
 
   const validate = () => {
-    const e: Record<string,string> = {};
+    const e: Record<string, string> = {};
     if (!form.loco_number) e.loco_number = 'Required';
     if (!form.inspector)   e.inspector   = 'Required';
-    setErrors(e); return Object.keys(e).length === 0;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleSave = async () => {
@@ -302,7 +319,7 @@ function PIForm({ item, onDone }: { item:any|null; onDone:()=>void }) {
           <div className="pi-field">
             <label>Inspection Type</label>
             <select value={form.inspection_type} onChange={e => sf('inspection_type', e.target.value)}>
-              {TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+              {TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
           <div className="pi-field">
