@@ -1,114 +1,223 @@
-import React, { useState } from 'react';
-import { useContextMenu } from '../hooks/useContextMenu';
-import ContextMenu from '../components/ContextMenu';
-import { usePageData } from '../hooks/usePageData';
-import { useDebounce } from '../hooks/useDebounce';
+// =============================================================================
+// FILE: frontend/src/pages/BOMPage.tsx
+// Real-API BOM with expandable PL tree + flat list/search tab
+// =============================================================================
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { PageHeader, Btn, SearchBar, Toast } from '../components/common';
+import type { ToastMsg } from '../components/common';
+import { plMasterService } from '../services/plMasterService';
+import './BOMPage.css';
 
-interface BOMItem {
-  id: string;
-  partNo: string;
-  description: string;
-  qty: number;
-  unit: string;
-  locoType: string;
-  drawingNo: string;
-  status: 'Active' | 'Obsolete' | 'Provisional';
-}
-
-const MOCK_BOM: BOMItem[] = [
-  { id:'1', partNo:'CLW/WAG9/TM/001', description:'Traction Motor TM615', qty:6, unit:'Nos', locoType:'WAG-9', drawingNo:'CLW/WAG9/TM/0234/A', status:'Active' },
-  { id:'2', partNo:'CLW/WAG9/PAN/001', description:'Pantograph Assembly AM-12', qty:2, unit:'Nos', locoType:'WAG-9', drawingNo:'EL-PAN-001', status:'Active' },
-  { id:'3', partNo:'CLW/WAP7/MT/001', description:'Main Transformer 5400kW', qty:1, unit:'Nos', locoType:'WAP-7', drawingNo:'EL-MT-001', status:'Active' },
-  { id:'4', partNo:'BG-WS-001', description:'Wheelset Assembly BG', qty:6, unit:'Sets', locoType:'WAG-9', drawingNo:'BG-WS-001', status:'Active' },
-  { id:'5', partNo:'BR-AIR-006', description:'Distributor Valve C3W', qty:8, unit:'Nos', locoType:'All', drawingNo:'BR-AIR-006', status:'Provisional' },
-];
+type BOMTab = 'tree' | 'list';
 
 export default function BOMPage() {
-  const [search, setSearch] = useState('');
-  const dSearch = useDebounce(search, 300);
-  const { menu, openMenu, closeMenu } = useContextMenu();
-
-  const { data, loading } = usePageData<BOMItem[]>({
-    fetchFn: async () => MOCK_BOM,
-    deps: [],
-  });
-
-  const items = (data ?? []).filter(item =>
-    item.partNo.toLowerCase().includes(dSearch.toLowerCase()) ||
-    item.description.toLowerCase().includes(dSearch.toLowerCase()) ||
-    item.locoType.toLowerCase().includes(dSearch.toLowerCase())
+  const [tab, setTab] = useState<BOMTab>('tree');
+  return (
+    <div className="bom-page">
+      <PageHeader title="Bill of Materials" subtitle="PL-based BOM tree — expandable hierarchy per loco type" />
+      <div className="bom-tabs">
+        <button className={`bom-tab${tab==='tree'?' bom-tab--active':''}`} onClick={() => setTab('tree')}>🌲 BOM Tree</button>
+        <button className={`bom-tab${tab==='list'?' bom-tab--active':''}`} onClick={() => setTab('list')}>📋 Flat List</button>
+      </div>
+      <div className="bom-body">
+        {tab === 'tree' ? <BOMTree /> : <BOMFlatList />}
+      </div>
+    </div>
   );
+}
 
-  const getRowActions = (item: BOMItem) => [
-    { label: '📋 View BOM Details', onClick: () => console.log('View', item.id) },
-    { label: '✏️ Edit Item', onClick: () => console.log('Edit', item.id) },
-    { label: '📄 Open Drawing', onClick: () => console.log('Drawing', item.drawingNo) },
-    { divider: true } as const,
-    { label: '📤 Export Row', onClick: () => console.log('Export', item.id) },
-    { label: '🗑️ Delete', onClick: () => console.log('Delete', item.id), danger: true },
-  ];
+// ─── BOM Tree ────────────────────────────────────────────────────────────────
+function BOMTree() {
+  const [rootPL,   setRootPL]   = useState('');
+  const [tree,     setTree]     = useState<any>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [maxDepth, setMaxDepth] = useState(4);
+  const [toast,    setToast]    = useState<ToastMsg|null>(null);
+
+  const loadTree = async () => {
+    if (!rootPL.trim()) return;
+    setLoading(true); setTree(null);
+    try {
+      const data = await plMasterService.getBOMTree(rootPL.trim(), maxDepth);
+      setTree(data);
+    } catch {
+      setToast({ type:'error', text:`PL "${rootPL}" not found or no BOM data.` });
+    } finally { setLoading(false); }
+  };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-        <h1 style={{ color:'#e2e8f0', fontSize:'22px', fontWeight:700, margin:0 }}>📦 Bill of Materials</h1>
-        <div style={{ display:'flex', gap:'10px' }}>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search part no, description, loco type…"
-            style={{ padding:'8px 14px', borderRadius:'7px', border:'1px solid #2d3555', background:'#1e2332', color:'#d1d5db', width:'280px', fontSize:'13px' }}
-          />
-          <button style={{ padding:'8px 16px', background:'linear-gradient(135deg,#4b6cb7,#182848)', border:'none', borderRadius:'7px', color:'#fff', fontWeight:600, cursor:'pointer' }}>
-            + Add Part
-          </button>
-        </div>
+    <div className="bom-tree-wrap">
+      <Toast msg={toast} onClose={() => setToast(null)} />
+      <div className="bom-tree-toolbar">
+        <SearchBar
+          value={rootPL}
+          onChange={setRootPL}
+          placeholder="Enter root PL number (e.g. PLW-TM-001)…"
+          width={320}
+        />
+        <select value={maxDepth} onChange={e => setMaxDepth(Number(e.target.value))} className="bom-select">
+          {[2,3,4,5,6].map(d => <option key={d} value={d}>Depth {d}</option>)}
+        </select>
+        <Btn size="sm" onClick={loadTree} loading={loading}>🔍 Load BOM</Btn>
+        {tree && <Btn size="sm" variant="ghost" onClick={() => setTree(null)}>✕ Clear</Btn>}
       </div>
 
-      {loading ? (
-        <div style={{ color:'#6b7280', textAlign:'center', padding:'60px' }}>Loading BOM…</div>
-      ) : (
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13.5px' }}>
-          <thead>
-            <tr style={{ background:'#1a2238', color:'#6b7280', textTransform:'uppercase', fontSize:'11px' }}>
-              {['Part No', 'Description', 'Qty', 'Unit', 'Loco Type', 'Drawing No', 'Status', ''].map(h => (
-                <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontWeight:600, borderBottom:'1px solid #2d3555' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      {loading && <div className="bom-loading">Loading BOM tree…</div>}
+
+      {!loading && !tree && (
+        <div className="bom-empty">
+          <div className="bom-empty-icon">🔩</div>
+          <p>Enter a PL number above and click <strong>Load BOM</strong> to view the hierarchy.</p>
+          <p className="bom-empty-hint">Tip: Use the Depth selector to control how many levels to expand.</p>
+        </div>
+      )}
+
+      {tree && (
+        <div className="bom-tree-panel">
+          <div className="bom-tree-header">
+            <span className="bom-tree-root-label">Root: <strong className="bom-mono">{tree.pl_number}</strong></span>
+            <span className="bom-tree-count">{countNodes(tree.children)} child items</span>
+          </div>
+          <div className="bom-tree-scroll">
+            {tree.children?.length === 0
+              ? <div className="bom-no-children">No child BOM items found for this PL number.</div>
+              : tree.children?.map((node: any, i: number) => (
+                  <BOMNode key={i} node={node} depth={0} />
+                ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function countNodes(children: any[]): number {
+  if (!children?.length) return 0;
+  return children.reduce((acc: number, c: any) => acc + 1 + countNodes(c.children ?? []), 0);
+}
+
+function BOMNode({ node, depth }: { node: any; depth: number }) {
+  const [open, setOpen] = useState(depth < 1);
+  const hasChildren = (node.children ?? []).length > 0;
+  const indent = depth * 20;
+
+  return (
+    <div>
+      <div
+        className={`bom-node${depth===0?' bom-node--root':''}`}
+        style={{ paddingLeft: 16 + indent }}
+        onClick={() => hasChildren && setOpen(o => !o)}
+      >
+        <span className="bom-node-toggle">
+          {hasChildren ? (open ? '▼' : '▶') : '•'}
+        </span>
+        <span className="bom-node-pl bom-mono">{node.pl_number}</span>
+        <span className="bom-node-desc">{node.description ?? '—'}</span>
+        {node.qty != null && (
+          <span className="bom-node-qty">× {node.qty} {node.unit ?? ''}</span>
+        )}
+        {node.inspection_category && (
+          <span className={`bom-node-cat bom-node-cat-${node.inspection_category?.toLowerCase()}`}>
+            {node.inspection_category}
+          </span>
+        )}
+        {node.safety_item && <span className="bom-node-safety">⚠ Safety</span>}
+      </div>
+      {open && hasChildren && (
+        <div className="bom-node-children">
+          {node.children.map((child: any, i: number) => (
+            <BOMNode key={i} node={child} depth={depth + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Flat List ────────────────────────────────────────────────────────────────
+function BOMFlatList() {
+  const [items,   setItems]   = useState<any[]>([]);
+  const [total,   setTotal]   = useState(0);
+  const [page,    setPage]    = useState(1);
+  const [search,  setSearch]  = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast,   setToast]   = useState<ToastMsg|null>(null);
+  const [filters, setFilters] = useState({ safety_item: '', inspection_category: '' });
+  const PAGE_SIZE = 25;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p: Record<string,string> = { page: String(page), page_size: String(PAGE_SIZE) };
+      if (search) p.q = search;
+      if (filters.safety_item) p.safety_item = filters.safety_item;
+      if (filters.inspection_category) p.inspection_category = filters.inspection_category;
+      const data = await plMasterService.listPL(p);
+      setItems(data.results ?? []);
+      setTotal(data.total_count ?? 0);
+    } catch { setToast({ type:'error', text:'Failed to load BOM items.' }); }
+    finally { setLoading(false); }
+  }, [page, search, filters]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  return (
+    <div>
+      <Toast msg={toast} onClose={() => setToast(null)} />
+      <div className="bom-list-toolbar">
+        <SearchBar value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search PL, description, UVAM…" width={300} />
+        <select className="bom-select" value={filters.inspection_category}
+          onChange={e => setFilters(f => ({...f, inspection_category: e.target.value}))}>
+          <option value="">All Categories</option>
+          <option value="A">A — Safety Critical</option>
+          <option value="B">B — Important</option>
+          <option value="C">C — Normal</option>
+        </select>
+        <select className="bom-select" value={filters.safety_item}
+          onChange={e => setFilters(f => ({...f, safety_item: e.target.value}))}>
+          <option value="">Safety: All</option>
+          <option value="true">Safety Items</option>
+          <option value="false">Non-Safety</option>
+        </select>
+        <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
+      </div>
+
+      <div className="bom-list-table-wrap">
+        <table className="bom-table">
+          <thead><tr>
+            <th>PL Number</th><th>Description</th><th>UVAM ID</th>
+            <th>Category</th><th>Safety</th><th>Used In</th><th>App Area</th>
+          </tr></thead>
           <tbody>
-            {items.map(item => (
-              <tr
-                key={item.id}
-                style={{ borderBottom:'1px solid #1e2332', color:'#d1d5db', cursor:'pointer' }}
-                onContextMenu={e => openMenu(e, getRowActions(item), item.partNo)}
-              >
-                <td style={{ padding:'10px 14px', color:'#60a5fa', fontFamily:'monospace' }}>{item.partNo}</td>
-                <td style={{ padding:'10px 14px' }}>{item.description}</td>
-                <td style={{ padding:'10px 14px', textAlign:'center' }}>{item.qty}</td>
-                <td style={{ padding:'10px 14px' }}>{item.unit}</td>
-                <td style={{ padding:'10px 14px' }}>
-                  <span style={{ background:'#1e3a5f', color:'#60a5fa', padding:'2px 8px', borderRadius:'12px', fontSize:'12px' }}>{item.locoType}</span>
-                </td>
-                <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:'12px', color:'#a78bfa' }}>{item.drawingNo}</td>
-                <td style={{ padding:'10px 14px' }}>
-                  <span style={{ background: item.status==='Active'?'#052e16': item.status==='Obsolete'?'#3b0a0a':'#2d2000', color: item.status==='Active'?'#4ade80': item.status==='Obsolete'?'#f87171':'#fbbf24', padding:'2px 8px', borderRadius:'12px', fontSize:'12px' }}>
-                    {item.status}
-                  </span>
-                </td>
-                <td style={{ padding:'10px 14px' }}>
-                  <button
-                    onClick={e => openMenu(e, getRowActions(item), item.partNo)}
-                    style={{ background:'none', border:'1px solid #2d3555', color:'#6b7280', borderRadius:'5px', padding:'3px 10px', cursor:'pointer', fontSize:'15px' }}
-                  >⋯</button>
-                </td>
+            {loading && <tr><td colSpan={7} className="bom-center bom-muted">Loading…</td></tr>}
+            {!loading && items.length===0 && <tr><td colSpan={7} className="bom-center bom-muted">No items found.</td></tr>}
+            {items.map(pl => (
+              <tr key={pl.pl_number}>
+                <td><strong className="bom-mono">{pl.pl_number}</strong></td>
+                <td className="bom-desc">{pl.description ?? '—'}</td>
+                <td className="bom-mono bom-muted">{pl.uvam_id ?? '—'}</td>
+                <td>{pl.inspection_category
+                  ? <span className={`bom-badge bom-cat-${pl.inspection_category?.toLowerCase()}`}>{pl.inspection_category}</span>
+                  : '—'}</td>
+                <td className="bom-center">{pl.safety_item ? '⚠️' : '—'}</td>
+                <td className="bom-muted" style={{fontSize:11}}>{pl.used_in ?? '—'}</td>
+                <td className="bom-muted" style={{fontSize:11}}>{pl.application_area ?? '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+      </div>
 
-      <ContextMenu {...menu} onClose={closeMenu} />
+      <div className="bom-pagination">
+        <span className="bom-muted">{total} PL items total</span>
+        <div className="bom-page-btns">
+          <Btn size="sm" variant="secondary" disabled={page<=1} onClick={() => setPage(p=>p-1)}>← Prev</Btn>
+          <span>Page {page} / {totalPages||1}</span>
+          <Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</Btn>
+        </div>
+      </div>
     </div>
   );
 }
