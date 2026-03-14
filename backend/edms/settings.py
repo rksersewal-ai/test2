@@ -1,6 +1,10 @@
 # =============================================================================
 # FILE: backend/edms/settings.py
 # EDMS-LDO Django settings — LAN-first, no internet dependency
+#
+# PORT POLICY:
+#   Backend runs on 8765 (avoids 8000 = DSC Signer on office PCs)
+#   Frontend runs on 4173 (Vite's own preview port)
 # =============================================================================
 import os
 from pathlib import Path
@@ -14,35 +18,34 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production-use-env-var')
 DEBUG      = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,0.0.0.0').split(',')
-# For LAN deployment add your server IP: e.g. '192.168.1.100'
+ALLOWED_HOSTS = os.environ.get(
+    'DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,0.0.0.0'
+).split(',')
 
 # ───────────────────────────────────────────────────────────────────────────
 # Application definition
 # ───────────────────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
-    # Django core
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
     # EDMS apps
-    'master',           # Master data: LocomotiveType, ComponentCatalog, Lookups
-    'config_mgmt',      # LocoConfig + ECN register
-    'prototype',        # Prototype Inspection + Punch Items
-    'ocr_queue',        # OCR Job queue
-    'audit_log',        # System-wide audit trail
+    'master',
+    'config_mgmt',
+    'prototype',
+    'ocr_queue',
+    'audit_log',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',          # must be first
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -71,7 +74,7 @@ TEMPLATES = [{
 WSGI_APPLICATION = 'edms.wsgi.application'
 
 # ───────────────────────────────────────────────────────────────────────────
-# Database — PostgreSQL (primary), fallback to SQLite for quick dev
+# Database — PostgreSQL (primary), SQLite fallback
 # ───────────────────────────────────────────────────────────────────────────
 _DB_ENGINE = os.environ.get('DB_ENGINE', 'django.db.backends.postgresql')
 
@@ -96,7 +99,7 @@ else:
     }
 
 # ───────────────────────────────────────────────────────────────────────────
-# Authentication — JWT via SimpleJWT
+# REST Framework + SimpleJWT
 # ───────────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -125,12 +128,12 @@ SIMPLE_JWT = {
 }
 
 # ───────────────────────────────────────────────────────────────────────────
-# CORS — LAN-only (no wildcard in production)
+# CORS — LAN-only, port 4173 for Vite frontend
 # ───────────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173'
+    'CORS_ORIGINS',
+    'http://localhost:4173,http://127.0.0.1:4173'
 ).split(',')
-# For LAN: add http://192.168.1.100:5173 etc. via .env
 
 # ───────────────────────────────────────────────────────────────────────────
 # File uploads
@@ -142,7 +145,7 @@ STATIC_URL  = '/static/'
 STATIC_ROOT = str(BASE_DIR / 'staticfiles')
 
 # ───────────────────────────────────────────────────────────────────────────
-# Localisation (Indian Railways)
+# Localisation (Indian Railways — IST)
 # ───────────────────────────────────────────────────────────────────────────
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE     = 'Asia/Kolkata'
