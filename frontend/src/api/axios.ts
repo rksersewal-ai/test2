@@ -1,6 +1,7 @@
 // =============================================================================
 // FILE: frontend/src/api/axios.ts
-// Single re-export shim so all services can import from '../api/axios'
-// The real client with JWT interceptors lives in ./client.ts
+// Shim: re-export from client.ts so both import styles resolve to same instance:
+//   import apiClient from '../api/axios'     <- old style
+//   import { apiClient } from '../api/client' <- new style
 // =============================================================================
-export { apiClient as default } from './client';
+export { default, apiClient } from './client';
