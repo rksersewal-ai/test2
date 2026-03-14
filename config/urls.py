@@ -34,8 +34,11 @@ urlpatterns = [
     path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
     path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
 
-    # PL Master module — PRD amendment PLW/LDO/PRD/2026/001 v1.0
+    # PL Master module
     path(API_V1 + 'pl-master/',  include('apps.pl_master.urls')),
+
+    # Work Ledger module — PRD Section 4.1 (Individual Work Tracking)
+    path(API_V1 + 'work/',       include('apps.work_ledger.urls')),
 
     # Sprint 7: Public share-link routes (no auth required)
     path('s/', include(('apps.sharelinks.urls', 'sharelinks'), namespace='sharelinks-public')),

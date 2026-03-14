@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'apps.scanner',
     # PL Master module (PRD amendment PLW/LDO/PRD/2026/001 v1.0)
     'apps.pl_master',
+    # Work Ledger module (PRD Section 4.1 — Individual Work Tracking)
+    'apps.work_ledger',
 ]
 
 MIDDLEWARE = [
