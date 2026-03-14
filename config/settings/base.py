@@ -1,5 +1,10 @@
 # =============================================================================
 # FILE: config/settings/base.py
+# BUG FIX: Added missing INSTALLED_APPS entries:
+#   - 'config_mgmt'       → LocoConfig + ECN register (backend/config_mgmt)
+#   - 'prototype'         → Prototype Inspection + Punch Items (backend/prototype)
+#   - 'django_celery_beat'→ Referenced in CELERY_BEAT_SCHEDULER but was absent,
+#                           causing ImportError on Celery beat startup
 # =============================================================================
 import os
 from pathlib import Path
@@ -23,7 +28,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    # Internal apps
+    'django_celery_beat',    # BUG FIX: was referenced in CELERY_BEAT_SCHEDULER but missing here
+    # Internal apps (apps/ package)
     'apps.core',
     'apps.edms',
     'apps.workflow',
@@ -37,12 +43,12 @@ INSTALLED_APPS = [
     'apps.sharelinks',
     'apps.webhooks',
     'apps.scanner',
-    # PL Master module
     'apps.pl_master',
-    # Work Ledger module
     'apps.work_ledger',
-    # Shop Drawing Request module
     'apps.sdr',
+    # Backend standalone apps (backend/ package, sit on sys.path via manage.py)
+    'config_mgmt',           # BUG FIX: LocoConfig + ECN — was missing, migrations would fail
+    'prototype',             # BUG FIX: Prototype Inspection — was missing, migrations would fail
 ]
 
 MIDDLEWARE = [
