@@ -1,0 +1,41 @@
+/* PLMaster module styles */
+.plm-page  { display:flex; flex-direction:column; height:100%; }
+.plm-tabs  { display:flex; gap:0; border-bottom:2px solid #003366; background:#fff; padding:0 24px; }
+.plm-tab   { padding:10px 20px; background:none; border:none; border-bottom:2px solid transparent;
+  margin-bottom:-2px; font-size:13px; font-weight:600; color:#666; cursor:pointer; transition:all .15s; }
+.plm-tab--active { color:#003366; border-bottom-color:#003366; }
+.plm-tab:hover:not(.plm-tab--active) { color:#003366; background:#f4f7fb; }
+.plm-body  { flex:1; overflow-y:auto; padding:20px 24px; }
+
+.plm-toolbar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+}
+.plm-toolbar select {
+  padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit;
+}
+
+.plm-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid #e0e6ef; }
+.plm-table { width:100%; border-collapse:collapse; font-size:13px; }
+.plm-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-weight:600; font-size:12px; }
+.plm-table td { padding:8px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+.plm-table tbody tr:hover { background:#f4f8fd; }
+.plm-center  { text-align:center; }
+.plm-muted   { color:#888; font-size:12px; }
+.plm-mono    { font-family:monospace; }
+.plm-desc    { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plm-actions { white-space:nowrap; display:flex; gap:4px; }
+
+/* Badges */
+.plm-badge { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
+.plm-badge-blue   { background:#dbeafe; color:#1e40af; }
+.plm-badge-teal   { background:#d1fae5; color:#065f46; }
+.plm-badge-green  { background:#bbf7d0; color:#14532d; }
+.plm-badge-orange { background:#fef3c7; color:#92400e; }
+.plm-badge-red    { background:#fee2e2; color:#991b1b; }
+.plm-badge-cat-a  { background:#fee2e2; color:#991b1b; }
+.plm-badge-cat-b  { background:#fef3c7; color:#92400e; }
+.plm-badge-cat-c  { background:#d1fae5; color:#065f46; }
+
+/* Pagination */
+.plm-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.plm-page-btns  { display:flex; align-items:center; gap:8px; font-size:13px; }
