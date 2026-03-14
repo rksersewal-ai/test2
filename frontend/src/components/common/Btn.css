@@ -1,0 +1,54 @@
+/* ============================================================
+   Global Button styles — PLW navy/gold theme
+   Used by every page via <Btn />
+============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, opacity .15s, box-shadow .15s;
+  white-space: nowrap;
+  line-height: 1;
+}
+.btn:disabled { opacity: .52; cursor: not-allowed; }
+.btn:focus-visible { outline: 3px solid #4a90d9; outline-offset: 2px; }
+
+/* sizes */
+.btn-sm { padding: 5px 12px;  font-size: 12px; }
+.btn-md { padding: 8px 18px;  font-size: 13px; }
+.btn-lg { padding: 11px 24px; font-size: 14px; }
+
+/* variants */
+.btn-primary   { background: #003366; color: #fff; }
+.btn-primary:hover:not(:disabled)   { background: #004080; }
+
+.btn-gold      { background: #CC9900; color: #fff; }
+.btn-gold:hover:not(:disabled)      { background: #b38600; }
+
+.btn-secondary { background: #e8ecf1; color: #333; }
+.btn-secondary:hover:not(:disabled) { background: #d3dae4; }
+
+.btn-danger    { background: #dc2626; color: #fff; }
+.btn-danger:hover:not(:disabled)    { background: #b91c1c; }
+
+.btn-ghost     { background: transparent; color: #003366; border: 1.5px solid #003366; }
+.btn-ghost:hover:not(:disabled)     { background: #eef2f9; }
+
+/* icon slot */
+.btn-icon  { display: flex; align-items: center; font-size: 1em; }
+
+/* spinner */
+.btn-spinner {
+  display: inline-block;
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin .6s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
