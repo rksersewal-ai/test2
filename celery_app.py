@@ -1,7 +1,7 @@
 # =============================================================================
 # FILE: celery_app.py  (project root)
-# SPRINT 5 UPDATE: Added weekly ML retrain to beat schedule.
-# All Sprint 4 schedules preserved exactly.
+# SPRINT 6 UPDATE: Added sanity check weekly schedule.
+# All Sprint 4 + 5 schedules preserved exactly.
 # =============================================================================
 import os
 from celery import Celery
@@ -31,13 +31,17 @@ app.conf.beat_schedule = {
         'task':     'notifications.approval_sla_reminders',
         'schedule': crontab(hour=3, minute=30),
     },
-
-    # ---- Sprint 5 -------------------------------------------------------
-    # ML retrain every Sunday at 01:00 IST (19:30 UTC Saturday)
-    # Runs after OCR batch has completed overnight.
+    # ---- Sprint 5 (preserved) -------------------------------------------
     'ml-retrain-weekly': {
         'task':     'ml.retrain_all',
         'schedule': crontab(hour=19, minute=30, day_of_week=0),
         'kwargs':   {'user_id': None},
+    },
+    # ---- Sprint 6 -------------------------------------------------------
+    # Sanity check every Monday at 07:00 IST (01:30 UTC)
+    'sanity-check-weekly': {
+        'task':     'sanity.run_checks',
+        'schedule': crontab(hour=1, minute=30, day_of_week=1),
+        'kwargs':   {'stale_draft_days': 90},
     },
 }
