@@ -3,11 +3,15 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
-build/
-dist/
+*.so
+*.egg
 *.egg-info/
+dist/
+build/
 .eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 
 # Django
 *.log
@@ -18,9 +22,21 @@ staticfiles/
 
 # Environment
 .env
-.venv/
+.env.*
+!.env.example
+
+# Virtual environments
 venv/
+.venv/
 env/
+
+# Node / React frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
 # IDE
 .vscode/
@@ -31,12 +47,8 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# OCR inbox (local only)
-ocr_inbox/
-ocr_processed/
-
-# Logs
-logs/
-*.log
+# Coverage
+htmlcov/
+.coverage
+coverage.xml

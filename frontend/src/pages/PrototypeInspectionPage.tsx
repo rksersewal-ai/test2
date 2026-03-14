@@ -1,113 +1,329 @@
-import React, { useState } from 'react';
-import { useContextMenu } from '../hooks/useContextMenu';
-import ContextMenu from '../components/ContextMenu';
-import { usePageData } from '../hooks/usePageData';
+// =============================================================================
+// FILE: frontend/src/pages/PrototypeInspectionPage.tsx
+// Full Prototype Inspection module: list + create + punch-list per inspection
+// =============================================================================
+import React, { useState, useEffect, useCallback } from 'react';
+import { PageHeader, Btn, SearchBar, ConfirmDialog, Toast } from '../components/common';
+import type { ToastMsg } from '../components/common';
+import { prototypeService } from '../services/prototypeService';
+import './PrototypeInspectionPage.css';
 
-interface InspectionRecord {
-  id: string;
-  locoClass: string;
-  serialNo: string;
-  inspectionType: string;
-  inspector: string;
-  date: string;
-  result: 'Pass' | 'Fail' | 'Conditional' | 'Pending';
-  remarks: string;
-}
-
-const MOCK_INSPECTIONS: InspectionRecord[] = [
-  { id:'1', locoClass:'WAG-9', serialNo:'31001', inspectionType:'Prototype Inspection', inspector:'RDSO Inspector', date:'2024-02-10', result:'Pass', remarks:'All parameters within spec.' },
-  { id:'2', locoClass:'WAG-12B', serialNo:'60001', inspectionType:'IGBT Module Test', inspector:'CLW QC', date:'2024-06-05', result:'Conditional', remarks:'Thermal margin borderline.' },
-  { id:'3', locoClass:'WAP-7', serialNo:'30200', inspectionType:'FAT (Factory Acceptance)', inspector:'Third Party (BV)', date:'2024-04-22', result:'Pass', remarks:'Full FAT completed.' },
-  { id:'4', locoClass:'DETC', serialNo:'DETC-045', inspectionType:'Platform Hydraulic Test', inspector:'DMW QA', date:'2024-09-01', result:'Pending', remarks:'Awaiting hydraulic pressure certification.' },
-  { id:'5', locoClass:'WAG-9', serialNo:'31090', inspectionType:'Bogie Overhaul Inspection', inspector:'CLW QC', date:'2025-01-15', result:'Fail', remarks:'Primary spring wear beyond limits.' },
-];
-
-const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
-  Pass:        { bg:'#052e16', text:'#4ade80' },
-  Fail:        { bg:'#3b0a0a', text:'#f87171' },
-  Conditional: { bg:'#2d2000', text:'#fbbf24' },
-  Pending:     { bg:'#1e1e2e', text:'#818cf8' },
-};
+type PIView = 'list' | 'detail' | 'form';
 
 export default function PrototypeInspectionPage() {
-  const [filter, setFilter] = useState('');
-  const { menu, openMenu, closeMenu } = useContextMenu();
-
-  const { data, loading } = usePageData<InspectionRecord[]>({
-    fetchFn: async () => MOCK_INSPECTIONS,
-  });
-
-  const items = (data ?? []).filter(r =>
-    r.locoClass.toLowerCase().includes(filter.toLowerCase()) ||
-    r.serialNo.includes(filter) ||
-    r.inspectionType.toLowerCase().includes(filter.toLowerCase())
-  );
-
-  const getActions = (item: InspectionRecord) => [
-    { label: '📋 View Full Report', onClick: () => console.log('view', item.id) },
-    { label: '📎 Attach Documents', onClick: () => console.log('attach', item.id) },
-    { label: '✏️ Edit Record', onClick: () => console.log('edit', item.id) },
-    { divider: true } as const,
-    { label: '📤 Export Report', onClick: () => console.log('export', item.id) },
-    { label: '🗑️ Delete', onClick: () => console.log('delete', item.id), danger: true, disabled: item.result === 'Pass' },
-  ];
+  const [view,       setView]       = useState<PIView>('list');
+  const [activeId,   setActiveId]   = useState<number|null>(null);
+  const [editItem,   setEditItem]   = useState<any|null>(null);
 
   return (
-    <div style={{ padding:'24px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-        <h1 style={{ color:'#e2e8f0', fontSize:'22px', fontWeight:700, margin:0 }}>🔬 Prototype Inspection</h1>
-        <div style={{ display:'flex', gap:'10px' }}>
-          <input
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            placeholder="Search loco, serial, inspection type…"
-            style={{ padding:'8px 14px', borderRadius:'7px', border:'1px solid #2d3555', background:'#1e2332', color:'#d1d5db', width:'280px', fontSize:'13px' }}
-          />
-          <button style={{ padding:'8px 16px', background:'linear-gradient(135deg,#4b6cb7,#182848)', border:'none', borderRadius:'7px', color:'#fff', fontWeight:600, cursor:'pointer' }}>
-            + New Inspection
-          </button>
-        </div>
+    <div className="pi-page">
+      {view === 'list'   && <PIList  onView={id => { setActiveId(id); setView('detail'); }}
+                                     onNew={() => { setEditItem(null); setView('form'); }} />}
+      {view === 'detail' && activeId && <PIDetail inspectionId={activeId} onBack={() => setView('list')} />}
+      {view === 'form'   && <PIForm  item={editItem} onDone={() => setView('list')} />}
+    </div>
+  );
+}
+
+// ─── Inspection List ──────────────────────────────────────────────────────────────
+function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void }) {
+  const [items,   setItems]   = useState<any[]>([]);
+  const [total,   setTotal]   = useState(0);
+  const [page,    setPage]    = useState(1);
+  const [search,  setSearch]  = useState('');
+  const [status,  setStatus]  = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast,   setToast]   = useState<ToastMsg|null>(null);
+  const PAGE_SIZE = 20;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p: Record<string,string> = { page: String(page), page_size: String(PAGE_SIZE) };
+      if (search) p.search = search;
+      if (status) p.status = status;
+      const data = await prototypeService.listInspections(p);
+      setItems(data.results ?? data ?? []);
+      setTotal(data.count ?? data.total_count ?? 0);
+    } catch { setToast({ type:'error', text:'Failed to load inspections.' }); }
+    finally { setLoading(false); }
+  }, [page, search, status]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const STATUS_CLS: Record<string,string> = {
+    OPEN:'pi-badge-open', IN_PROGRESS:'pi-badge-inprogress',
+    PASS:'pi-badge-pass', FAIL:'pi-badge-fail', CLOSED:'pi-badge-closed',
+  };
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  return (
+    <div>
+      <PageHeader title="Prototype Inspection" subtitle="Prototype loco inspection records and punch lists">
+        <Btn size="sm" onClick={onNew}>+ New Inspection</Btn>
+      </PageHeader>
+      <Toast msg={toast} onClose={() => setToast(null)} />
+
+      <div className="pi-toolbar">
+        <SearchBar value={search} onChange={v => { setSearch(v); setPage(1); }}
+          placeholder="Search loco no, inspection type…" width={300} />
+        <select className="pi-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+          <option value="">All Status</option>
+          <option value="OPEN">Open</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="PASS">Pass</option>
+          <option value="FAIL">Fail</option>
+          <option value="CLOSED">Closed</option>
+        </select>
+        <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
       </div>
 
-      {loading ? (
-        <div style={{ color:'#6b7280', textAlign:'center', padding:'60px' }}>Loading inspections…</div>
-      ) : (
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13.5px' }}>
-          <thead>
-            <tr style={{ background:'#1a2238', color:'#6b7280', textTransform:'uppercase', fontSize:'11px' }}>
-              {['Loco Class', 'Serial No', 'Inspection Type', 'Inspector', 'Date', 'Result', 'Remarks', ''].map(h => (
-                <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontWeight:600, borderBottom:'1px solid #2d3555' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      <div className="pi-table-wrap">
+        <table className="pi-table">
+          <thead><tr>
+            <th>Loco No.</th><th>Loco Class</th><th>Inspection Type</th>
+            <th>Inspection Date</th><th>Inspector</th><th>Status</th>
+            <th>Punch Items</th><th>Actions</th>
+          </tr></thead>
           <tbody>
-            {items.map(item => (
-              <tr
-                key={item.id}
-                onContextMenu={e => openMenu(e, getActions(item), `${item.locoClass} #${item.serialNo}`)}
-                style={{ borderBottom:'1px solid #1e2332', color:'#d1d5db', cursor:'pointer' }}
-              >
-                <td style={{ padding:'10px 14px' }}><span style={{ background:'#1e3a5f', color:'#60a5fa', padding:'2px 8px', borderRadius:'12px', fontSize:'12px' }}>{item.locoClass}</span></td>
-                <td style={{ padding:'10px 14px', fontFamily:'monospace' }}>{item.serialNo}</td>
-                <td style={{ padding:'10px 14px' }}>{item.inspectionType}</td>
-                <td style={{ padding:'10px 14px' }}>{item.inspector}</td>
-                <td style={{ padding:'10px 14px' }}>{item.date}</td>
-                <td style={{ padding:'10px 14px' }}>
-                  <span style={{ background: STATUS_COLOR[item.result].bg, color: STATUS_COLOR[item.result].text, padding:'2px 8px', borderRadius:'12px', fontSize:'12px' }}>
-                    {item.result}
+            {loading && <tr><td colSpan={8} className="pi-center pi-muted">Loading…</td></tr>}
+            {!loading && items.length===0 && <tr><td colSpan={8} className="pi-center pi-muted">No inspection records found.</td></tr>}
+            {items.map(ins => (
+              <tr key={ins.id}>
+                <td className="pi-mono">{ins.loco_number ?? '—'}</td>
+                <td><span className="pi-badge pi-badge-blue">{ins.loco_class ?? '—'}</span></td>
+                <td>{ins.inspection_type ?? '—'}</td>
+                <td className="pi-muted">{ins.inspection_date ?? '—'}</td>
+                <td className="pi-muted">{ins.inspector_name ?? ins.inspector ?? '—'}</td>
+                <td><span className={`pi-badge ${STATUS_CLS[ins.status] ?? ''}`}>{ins.status}</span></td>
+                <td className="pi-center">
+                  <span className={`pi-punch-count${(ins.open_punch_items ?? 0) > 0 ? ' pi-punch-count--open' : ''}`}>
+                    {ins.open_punch_items ?? 0} open
                   </span>
                 </td>
-                <td style={{ padding:'10px 14px', color:'#9ca3af', fontSize:'12px', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.remarks}</td>
-                <td style={{ padding:'10px 14px' }}>
-                  <button onClick={e => openMenu(e, getActions(item), item.inspectionType)} style={{ background:'none', border:'1px solid #2d3555', color:'#6b7280', borderRadius:'5px', padding:'3px 10px', cursor:'pointer', fontSize:'15px' }}>⋯</button>
+                <td className="pi-actions">
+                  <Btn size="sm" variant="ghost" onClick={() => onView(ins.id)}>👁 View</Btn>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+      </div>
 
-      <ContextMenu {...menu} onClose={closeMenu} />
+      <div className="pi-pagination">
+        <span className="pi-muted">{total} inspections</span>
+        <div className="pi-page-btns">
+          <Btn size="sm" variant="secondary" disabled={page<=1} onClick={() => setPage(p=>p-1)}>← Prev</Btn>
+          <span>Page {page} / {totalPages||1}</span>
+          <Btn size="sm" variant="secondary" disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Next →</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inspection Detail (with Punch List) ────────────────────────────────────────────────
+function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>void }) {
+  const [ins,    setIns]    = useState<any>(null);
+  const [punches,setPunches]= useState<any[]>([]);
+  const [loading,setLoading]= useState(true);
+  const [toast,  setToast]  = useState<ToastMsg|null>(null);
+  const [newPunch, setNewPunch] = useState('');
+  const [addingPunch, setAddingPunch] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [i, p] = await Promise.all([
+        prototypeService.getInspection(inspectionId),
+        prototypeService.listPunchItems(inspectionId).catch(() => []),
+      ]);
+      setIns(i); setPunches(Array.isArray(p) ? p : p.results ?? []);
+    } catch { setToast({ type:'error', text:'Failed to load inspection.' }); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [inspectionId]);
+
+  const handleAddPunch = async () => {
+    if (!newPunch.trim()) return;
+    setAddingPunch(true);
+    try {
+      await prototypeService.createPunchItem(inspectionId, { description: newPunch, status:'OPEN' });
+      setNewPunch(''); load();
+      setToast({ type:'success', text:'Punch item added.' });
+    } catch { setToast({ type:'error', text:'Failed to add punch item.' }); }
+    finally { setAddingPunch(false); }
+  };
+
+  const handleClosePunch = async (punchId: number) => {
+    try { await prototypeService.closePunchItem(inspectionId, punchId); load(); setToast({ type:'success', text:'Punch item closed.' }); }
+    catch { setToast({ type:'error', text:'Failed to close punch item.' }); }
+  };
+
+  const handleCloseInspection = async () => {
+    try { await prototypeService.closeInspection(inspectionId); load(); setToast({ type:'success', text:'Inspection closed.' }); }
+    catch { setToast({ type:'error', text:'Failed to close inspection.' }); }
+  };
+
+  if (loading) return <div className="pi-loading">⏳ Loading…</div>;
+
+  return (
+    <div>
+      <PageHeader
+        title={`Inspection #${inspectionId}`}
+        subtitle={`${ins?.loco_class ?? ''} — ${ins?.loco_number ?? ''} — ${ins?.inspection_type ?? ''}`}
+        back={onBack}
+      >
+        {ins?.status !== 'CLOSED' && (
+          <Btn size="sm" variant="primary" onClick={handleCloseInspection}>✓ Close Inspection</Btn>
+        )}
+      </PageHeader>
+      <Toast msg={toast} onClose={() => setToast(null)} />
+
+      {/* Inspection metadata */}
+      <div className="pi-detail-grid">
+        <div className="pi-card">
+          <div className="pi-card-title">📋 Inspection Details</div>
+          <div className="pi-card-body">
+            <table className="pi-meta-table">
+              <tbody>
+                {[
+                  ['Loco Number',   ins?.loco_number ?? '—'],
+                  ['Loco Class',    ins?.loco_class ?? '—'],
+                  ['Inspection Type', ins?.inspection_type ?? '—'],
+                  ['Date',          ins?.inspection_date ?? '—'],
+                  ['Inspector',     ins?.inspector_name ?? ins?.inspector ?? '—'],
+                  ['Status',        ins?.status ?? '—'],
+                  ['Result',        ins?.result ?? '—'],
+                  ['Remarks',       ins?.remarks ?? '—'],
+                ].map(([k,v], i) => (
+                  <tr key={i}>
+                    <td className="pi-meta-key">{k}</td>
+                    <td className="pi-meta-val">{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Punch list */}
+        <div className="pi-card">
+          <div className="pi-card-title">📌 Punch List ({punches.filter(p=>p.status==='OPEN').length} open)</div>
+          <div className="pi-card-body">
+            {punches.length === 0 && <div className="pi-no-punch">No punch items. Inspection is clean ✅</div>}
+            {punches.map((p: any, i: number) => (
+              <div key={i} className={`pi-punch-item${p.status==='CLOSED'?' pi-punch-item--closed':''}`}>
+                <span className={`pi-punch-status pi-punch-status--${p.status?.toLowerCase()}`}>●</span>
+                <span className="pi-punch-desc">{p.description}</span>
+                {p.status === 'OPEN' && (
+                  <Btn size="sm" variant="ghost" onClick={() => handleClosePunch(p.id)}>✓ Close</Btn>
+                )}
+              </div>
+            ))}
+
+            {/* Add new punch */}
+            {ins?.status !== 'CLOSED' && (
+              <div className="pi-add-punch">
+                <input
+                  className="pi-punch-input"
+                  value={newPunch}
+                  onChange={e => setNewPunch(e.target.value)}
+                  onKeyDown={e => e.key==='Enter' && handleAddPunch()}
+                  placeholder="Add punch item (press Enter or click +)…"
+                />
+                <Btn size="sm" onClick={handleAddPunch} loading={addingPunch}>+ Add</Btn>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── New Inspection Form ─────────────────────────────────────────────────────────────
+function PIForm({ item, onDone }: { item:any|null; onDone:()=>void }) {
+  const [form, setForm] = useState({
+    loco_number: item?.loco_number ?? '',
+    loco_class:  item?.loco_class ?? 'WAG-9',
+    inspection_type: item?.inspection_type ?? 'PROTOTYPE',
+    inspection_date: item?.inspection_date ?? new Date().toISOString().slice(0,10),
+    inspector: item?.inspector ?? '',
+    remarks:   item?.remarks ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string,string>>({});
+  const [toast,  setToast]  = useState<ToastMsg|null>(null);
+
+  const LOCO = ['WAG-9','WAG-9H','WAP-7','WAP-5','WAG-12B','MEMU','DEMU'];
+  const TYPES = ['PROTOTYPE','PERIODIC','SPECIAL','RETURN_TO_SERVICE','PDI'];
+
+  const sf = (k: string, v: string) => { setForm(f => ({...f,[k]:v})); setErrors(e => ({...e,[k]:''})); };
+
+  const validate = () => {
+    const e: Record<string,string> = {};
+    if (!form.loco_number) e.loco_number = 'Required';
+    if (!form.inspector)   e.inspector   = 'Required';
+    setErrors(e); return Object.keys(e).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      if (item) await prototypeService.updateInspection(item.id, form);
+      else      await prototypeService.createInspection(form);
+      onDone();
+    } catch (err: any) {
+      setErrors({ _global: JSON.stringify(err?.response?.data ?? 'Save failed.') });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <PageHeader title={item ? 'Edit Inspection' : 'New Inspection'} back={onDone} />
+      <Toast msg={toast} onClose={() => setToast(null)} />
+      <div className="pi-form">
+        {errors._global && <div className="pi-alert-err">{errors._global}</div>}
+        <div className="pi-form-grid">
+          <div className="pi-field">
+            <label>Loco Number <span className="pi-req">*</span></label>
+            <input value={form.loco_number} onChange={e => sf('loco_number', e.target.value)} placeholder="e.g. 31001" />
+            {errors.loco_number && <span className="pi-err">{errors.loco_number}</span>}
+          </div>
+          <div className="pi-field">
+            <label>Loco Class</label>
+            <select value={form.loco_class} onChange={e => sf('loco_class', e.target.value)}>
+              {LOCO.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div className="pi-field">
+            <label>Inspection Type</label>
+            <select value={form.inspection_type} onChange={e => sf('inspection_type', e.target.value)}>
+              {TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+            </select>
+          </div>
+          <div className="pi-field">
+            <label>Inspection Date</label>
+            <input type="date" value={form.inspection_date} onChange={e => sf('inspection_date', e.target.value)} />
+          </div>
+          <div className="pi-field">
+            <label>Inspector Name <span className="pi-req">*</span></label>
+            <input value={form.inspector} onChange={e => sf('inspector', e.target.value)} placeholder="Inspector name…" />
+            {errors.inspector && <span className="pi-err">{errors.inspector}</span>}
+          </div>
+          <div className="pi-field pi-full">
+            <label>Remarks</label>
+            <textarea rows={3} value={form.remarks} onChange={e => sf('remarks', e.target.value)} />
+          </div>
+        </div>
+        <div className="pi-form-actions">
+          <Btn variant="secondary" onClick={onDone} disabled={saving}>Cancel</Btn>
+          <Btn variant="primary"   onClick={handleSave} loading={saving}>💾 Save Inspection</Btn>
+        </div>
+      </div>
     </div>
   );
 }

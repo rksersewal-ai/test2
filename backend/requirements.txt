@@ -1,0 +1,29 @@
+# =============================================================================
+# EDMS-LDO backend requirements
+# Install: pip install -r requirements.txt
+# =============================================================================
+
+# Django core
+Django==4.2.11
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+django-filter==24.2
+
+# Database
+psycopg2-binary==2.9.9        # PostgreSQL driver
+
+# PDF / OCR processing
+Pillow==10.3.0
+pytesseract==0.3.10
+pdfplumber==0.11.0
+openpyxl==3.1.2
+
+# Async / task queue (optional — for Celery-based OCR)
+celery==5.3.6
+redis==5.0.4                  # Celery broker (local Redis on LAN)
+
+# Utilities
+python-dotenv==1.0.1          # .env file loading
+gunicorn==22.0.0              # Production WSGI server
+whitenoise==6.6.0             # Static file serving without separate web server

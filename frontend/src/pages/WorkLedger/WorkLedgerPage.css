@@ -1,0 +1,64 @@
+/* Work Ledger styles */
+.wl-page { display:flex; flex-direction:column; height:100%; }
+
+.wl-toolbar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:12px 24px; background:#fff; border-bottom:1px solid #eee;
+}
+.wl-toolbar select {
+  padding:7px 10px; border:1px solid #ccc; border-radius:6px;
+  font-size:13px; font-family:inherit;
+}
+
+.wl-table-wrap { overflow-x:auto; padding:0 24px; margin-top:16px; }
+.wl-table { width:100%; border-collapse:collapse; font-size:13px; border-radius:8px; overflow:hidden; border:1px solid #e0e6ef; }
+.wl-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-size:12px; font-weight:600; }
+.wl-table td { padding:8px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+.wl-table tbody tr:hover { background:#f4f8fd; }
+.wl-center { text-align:center; }
+.wl-muted  { color:#888; font-size:12px; }
+.wl-mono   { font-family:monospace; font-size:12px; }
+.wl-desc   { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wl-actions { display:flex; gap:4px; white-space:nowrap; }
+
+/* Badges */
+.wl-badge          { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.wl-badge-draft    { background:#f1f5f9; color:#475569; }
+.wl-badge-submitted{ background:#dbeafe; color:#1e40af; }
+.wl-badge-verified { background:#d1fae5; color:#065f46; }
+.wl-badge-approved { background:#003366; color:#fff; }
+.wl-badge-returned { background:#fee2e2; color:#991b1b; }
+
+/* Pagination */
+.wl-pagination  { display:flex; justify-content:space-between; align-items:center; padding:12px 24px; }
+.wl-page-btns   { display:flex; align-items:center; gap:8px; font-size:13px; }
+
+/* Verify modal */
+.wl-modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:1000; display:flex; align-items:center; justify-content:center;
+}
+.wl-modal {
+  background:#fff; border-radius:10px; padding:28px 32px;
+  min-width:360px; box-shadow:0 8px 32px rgba(0,0,0,.18);
+}
+.wl-modal-title   { font-size:16px; font-weight:700; color:#003366; margin-bottom:12px; }
+.wl-remarks       { width:100%; padding:8px; border:1px solid #ccc; border-radius:5px; font-family:inherit; font-size:13px; margin:8px 0 16px; }
+.wl-modal-actions { display:flex; justify-content:flex-end; gap:8px; }
+
+/* Form */
+.wl-form { background:#fff; margin:16px 24px; border-radius:10px; border:1px solid #dde3ea; padding:24px; }
+.wl-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; }
+.wl-full      { grid-column:1/-1; }
+.wl-field     { display:flex; flex-direction:column; gap:4px; }
+.wl-field label { font-size:12px; font-weight:600; color:#444; }
+.wl-field input, .wl-field select, .wl-field textarea {
+  padding:7px 10px; border:1px solid #ccc; border-radius:5px;
+  font-size:13px; font-family:inherit; outline:none;
+}
+.wl-field input:focus, .wl-field select:focus, .wl-field textarea:focus { border-color:#003366; }
+.wl-req   { color:#dc2626; }
+.wl-err   { color:#dc2626; font-size:11px; }
+.wl-alert-error { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; border-radius:6px; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+.wl-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.wl-loading { padding:40px; text-align:center; color:#666; }

@@ -1,0 +1,48 @@
+/* Config Management Page */
+.cfg-page  { display:flex; flex-direction:column; height:100%; }
+.cfg-tabs  { display:flex; border-bottom:2px solid #003366; background:#fff; padding:0 24px; }
+.cfg-tab   { padding:10px 20px; background:none; border:none; border-bottom:2px solid transparent;
+  margin-bottom:-2px; font-size:13px; font-weight:600; color:#666; cursor:pointer; }
+.cfg-tab--active { color:#003366; border-bottom-color:#003366; }
+.cfg-body  { flex:1; overflow-y:auto; padding:20px 24px; }
+
+.cfg-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.cfg-select  { padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit; }
+
+.cfg-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid #e0e6ef; }
+.cfg-table { width:100%; border-collapse:collapse; font-size:13px; }
+.cfg-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-weight:600; font-size:12px; }
+.cfg-table td { padding:8px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+.cfg-table tbody tr:hover { background:#f4f8fd; }
+.cfg-center { text-align:center; }
+.cfg-muted  { color:#888; font-size:12px; }
+.cfg-mono   { font-family:monospace; }
+.cfg-purple { color:#7c3aed; }
+.cfg-gold   { color:#b45309; }
+.cfg-desc   { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cfg-actions { display:flex; gap:4px; white-space:nowrap; }
+
+.cfg-badge          { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.cfg-badge-blue     { background:#dbeafe; color:#1e40af; }
+.cfg-badge-approved { background:#d1fae5; color:#065f46; }
+.cfg-badge-pending  { background:#fef3c7; color:#92400e; }
+.cfg-badge-superseded{ background:#f1f5f9; color:#6b7280; }
+.cfg-badge-rejected { background:#fee2e2; color:#991b1b; }
+
+.cfg-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.cfg-page-btns  { display:flex; align-items:center; gap:8px; font-size:13px; }
+
+/* Modal */
+.cfg-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; display:flex; align-items:center; justify-content:center; }
+.cfg-modal         { background:#fff; border-radius:10px; width:540px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,.18); }
+.cfg-modal-header  { display:flex; justify-content:space-between; align-items:center; background:#003366; color:#fff; padding:14px 20px; border-radius:10px 10px 0 0; font-weight:600; font-size:14px; }
+.cfg-modal-close   { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; }
+.cfg-modal-body    { flex:1; overflow-y:auto; padding:20px; }
+.cfg-modal-footer  { display:flex; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid #eee; }
+.cfg-form-grid     { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.cfg-field         { display:flex; flex-direction:column; gap:4px; }
+.cfg-field label   { font-size:12px; font-weight:600; color:#444; }
+.cfg-field input, .cfg-field select { padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px; font-family:inherit; }
+.cfg-req  { color:#dc2626; }
+.cfg-err  { color:#dc2626; font-size:11px; }
+.cfg-alert-err { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; border-radius:6px; padding:10px 14px; margin-bottom:12px; font-size:13px; }

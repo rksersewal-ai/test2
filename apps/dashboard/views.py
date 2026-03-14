@@ -1,41 +1,47 @@
-"""Dashboard statistics endpoint.
-
-GET /api/v1/dashboard/stats/
-Returns a single JSON object with live counts suitable for the
-React DashboardPage stat cards (no caching — LAN query is fast enough).
-"""
+# =============================================================================
+# FILE: apps/dashboard/views.py
+# SPRINT 2 additions:
+#   - UserSavedViewViewSet    CRUD + pin/unpin + reorder  (Feature #7)
+# DashboardStatsView preserved exactly from Phase 1.
+# =============================================================================
 from django.utils import timezone
+from django.db import transaction
 from rest_framework.views import APIView
+from rest_framework import viewsets, permissions, filters, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import permissions
+from django_filters.rest_framework import DjangoFilterBackend
+
 from apps.edms.models import Document
 from apps.workflow.models import WorkLedgerEntry
 from apps.ocr.models import OCRQueue
+from apps.dashboard.models import UserSavedView
+from apps.dashboard.serializers import UserSavedViewSerializer, ReorderSavedViewsSerializer
 
+
+# ---------------------------------------------------------------------------
+# Existing — preserved exactly
+# ---------------------------------------------------------------------------
 
 class DashboardStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # Documents
-        doc_qs = Document.objects.values('status')
+        doc_qs     = Document.objects.values('status')
         doc_counts = {}
         for row in doc_qs.iterator():
             doc_counts[row['status']] = doc_counts.get(row['status'], 0) + 1
 
-        # Work ledger
-        wl_qs = WorkLedgerEntry.objects.values('status')
+        wl_qs     = WorkLedgerEntry.objects.values('status')
         wl_counts = {}
         for row in wl_qs.iterator():
             wl_counts[row['status']] = wl_counts.get(row['status'], 0) + 1
 
-        # OCR
-        ocr_qs = OCRQueue.objects.values('status')
+        ocr_qs     = OCRQueue.objects.values('status')
         ocr_counts = {}
         for row in ocr_qs.iterator():
             ocr_counts[row['status']] = ocr_counts.get(row['status'], 0) + 1
 
-        # Documents by section (top 15)
         from apps.edms.repository import DocumentRepository
         by_section = list(DocumentRepository.documents_by_section()[:15])
 
@@ -63,3 +69,64 @@ class DashboardStatsView(APIView):
             },
             'documents_by_section': by_section,
         })
+
+
+# ---------------------------------------------------------------------------
+# Sprint 2 — Feature #7: Saved Views ViewSet
+# ---------------------------------------------------------------------------
+
+class UserSavedViewViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for the current user's saved views.
+    All queries are scoped to request.user — users cannot see each other's views.
+
+    Extra actions:
+      POST .../pin/       — toggle is_pinned
+      POST .../reorder/   — bulk update sort_order
+    """
+    serializer_class   = UserSavedViewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends    = [DjangoFilterBackend, filters.OrderingFilter]
+    ordering_fields    = ['sort_order', 'module', 'view_name']
+    ordering           = ['module', 'sort_order']
+
+    def get_queryset(self):
+        qs     = UserSavedView.objects.filter(user=self.request.user)
+        module = self.request.query_params.get('module')
+        if module:
+            qs = qs.filter(module=module)
+        pinned = self.request.query_params.get('pinned')
+        if pinned == 'true':
+            qs = qs.filter(is_pinned=True)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='pin')
+    def pin(self, request, pk=None):
+        """Toggle is_pinned for this saved view."""
+        view           = self.get_object()
+        view.is_pinned = not view.is_pinned
+        view.save(update_fields=['is_pinned', 'updated_at'])
+        return Response({
+            'id':        view.pk,
+            'is_pinned': view.is_pinned,
+        })
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        """
+        Bulk-update sort_order for multiple saved views.
+        Body: {"items": [{"id": 3, "sort_order": 0}, {"id": 7, "sort_order": 1}]}
+        """
+        serializer = ReorderSavedViewsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            for item in serializer.validated_data['items']:
+                UserSavedView.objects.filter(
+                    pk=item['id'], user=request.user  # user-scoped safety
+                ).update(sort_order=item['sort_order'])
+
+        return Response({'reordered': len(serializer.validated_data['items'])})

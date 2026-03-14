@@ -4,11 +4,14 @@ from django.db import models
 
 
 class Section(models.Model):
-    code = models.CharField(max_length=20, unique=True)
-    name = models.CharField(max_length=120)
+    code        = models.CharField(max_length=20, unique=True)
+    name        = models.CharField(max_length=120)
     description = models.TextField(blank=True)
-    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='children')
-    is_active = models.BooleanField(default=True)
+    parent      = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='children'
+    )
+    is_active   = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'core_section'
@@ -35,29 +38,34 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     class Role(models.TextChoices):
-        ADMIN = 'ADMIN', 'Administrator'
+        ADMIN        = 'ADMIN',        'Administrator'
         SECTION_HEAD = 'SECTION_HEAD', 'Section Head'
-        ENGINEER = 'ENGINEER', 'Engineer'
-        LDO_STAFF = 'LDO_STAFF', 'LDO Staff'
-        AUDIT = 'AUDIT', 'Audit'
-        VIEWER = 'VIEWER', 'Viewer'
+        ENGINEER     = 'ENGINEER',     'Engineer'
+        LDO_STAFF    = 'LDO_STAFF',    'LDO Staff'
+        AUDIT        = 'AUDIT',        'Audit'
+        VIEWER       = 'VIEWER',       'Viewer'
 
-    username = models.CharField(max_length=60, unique=True)
-    email = models.EmailField(blank=True)
-    full_name = models.CharField(max_length=150)
+    username      = models.CharField(max_length=60, unique=True)
+    email         = models.EmailField(blank=True)
+    full_name     = models.CharField(max_length=150)
     employee_code = models.CharField(max_length=30, unique=True, null=True, blank=True)
-    designation = models.CharField(max_length=100, blank=True)
-    section = models.ForeignKey(Section, null=True, blank=True, on_delete=models.SET_NULL, related_name='users')
-    role = models.CharField(max_length=20, choices=Role.choices, default=Role.VIEWER)
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    designation   = models.CharField(max_length=100, blank=True)
+    section       = models.ForeignKey(
+        Section, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='users'
+    )
+    role          = models.CharField(
+        max_length=20, choices=Role.choices, default=Role.VIEWER
+    )
+    is_active     = models.BooleanField(default=True)
+    is_staff      = models.BooleanField(default=False)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'username'
+    USERNAME_FIELD  = 'username'
     REQUIRED_FIELDS = ['full_name']
 
     class Meta:

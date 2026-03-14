@@ -1,6 +1,16 @@
-from django.urls import path
-from apps.dashboard.views import DashboardStatsView
+# =============================================================================
+# FILE: apps/dashboard/urls.py
+# SPRINT 2: Added UserSavedViewViewSet router.
+# DashboardStatsView path preserved exactly.
+# =============================================================================
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from apps.dashboard.views import DashboardStatsView, UserSavedViewViewSet
+
+router = DefaultRouter()
+router.register(r'saved-views', UserSavedViewViewSet, basename='saved-view')
 
 urlpatterns = [
-    path('stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('stats/',   DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('',         include(router.urls)),
 ]

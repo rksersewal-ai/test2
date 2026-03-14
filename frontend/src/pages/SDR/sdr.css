@@ -1,0 +1,270 @@
+/* =============================================================================
+   FILE: frontend/src/pages/SDR/sdr.css
+   SDR module styles — PLW navy/gold theme
+============================================================================= */
+
+/* ── Page layout ── */
+.sdr-list-page { padding: 24px; }
+.page-wrapper  { padding: 24px; max-width: 1200px; }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.page-header h2  { margin: 0; color: #003366; font-size: 20px; }
+.page-header .subtitle { color: #666; font-size: 13px; margin: 4px 0 0; }
+
+/* ── Search bar ── */
+.search-bar { margin-bottom: 16px; }
+.search-bar input {
+  width: 360px;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* ── Data table ── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  background: #003366;
+  color: #fff;
+  padding: 9px 12px;
+  text-align: left;
+  font-weight: 600;
+}
+.data-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover { background: #f4f7fb; }
+.data-table .center { text-align: center; }
+.data-table .empty  { text-align: center; color: #999; padding: 32px; }
+.data-table .actions { white-space: nowrap; }
+.data-table .actions .btn + .btn { margin-left: 6px; }
+
+/* ── Badges ── */
+.badge {
+  padding: 2px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+.badge-navy { background: #003366; color: #fff; }
+.muted      { color: #aaa; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn-primary   { background: #003366; color: #fff; }
+.btn-primary:hover:not(:disabled)   { background: #004080; }
+.btn-secondary { background: #e8ecf0; color: #333; }
+.btn-secondary:hover:not(:disabled) { background: #d4dbe4; }
+.btn-danger    { background: #dc2626; color: #fff; }
+.btn-danger:hover:not(:disabled)    { background: #b91c1c; }
+.btn-sm  { padding: 5px 12px; font-size: 12px; }
+.btn-icon { padding: 4px 8px; font-size: 12px; }
+
+/* ── Alerts ── */
+.alert {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+.loading { padding: 40px; text-align: center; color: #666; }
+
+/* ── Form ── */
+.sdr-form { background: #fff; border-radius: 10px; border: 1px solid #dde3ea; }
+
+.form-title {
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #003366;
+  border-bottom: 2px solid #003366;
+  background: #f0f4f9;
+  border-radius: 10px 10px 0 0;
+}
+
+.form-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid #eee;
+}
+.form-section h3 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #003366;
+  font-weight: 700;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.section-header h3 { margin: 0; }
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 20px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+}
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 7px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus { border-color: #003366; }
+.form-field .readonly { background: #f4f7fb; color: #666; }
+.req { color: #dc2626; }
+.field-error { color: #dc2626; font-size: 11px; }
+.mb-8 { margin-bottom: 8px; }
+
+/* ── Items table ── */
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.items-table th {
+  background: #003366;
+  color: #fff;
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+}
+.items-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+.items-table tbody tr:hover { background: #f9fbfd; }
+.items-table .center { text-align: center; }
+
+.items-table input[type="text"],
+.items-table input[type="number"],
+.items-table select {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.items-table input[type="number"] { width: 60px; }
+.items-table .readonly { background: #f4f7fb; }
+
+/* ── Doc search dropdown ── */
+.doc-search-cell    { position: relative; }
+.doc-search-wrapper { position: relative; }
+.search-spinner {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 11px;
+  color: #999;
+}
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #bbb;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.search-dropdown li {
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.search-dropdown li:hover { background: #f0f4fb; }
+.search-dropdown li strong { color: #003366; }
+.search-dropdown .alt-tag {
+  background: #CC9900;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  margin-left: 4px;
+}
+.doc-subtitle {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Checkbox label ── */
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.checkbox-label input { width: auto; }
+
+/* ── Form actions ── */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  background: #f8f9fb;
+  border-radius: 0 0 10px 10px;
+}

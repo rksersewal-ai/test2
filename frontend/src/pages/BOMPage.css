@@ -1,0 +1,67 @@
+/* BOM Page styles */
+.bom-page  { display:flex; flex-direction:column; height:100%; }
+.bom-tabs  { display:flex; border-bottom:2px solid #003366; background:#fff; padding:0 24px; }
+.bom-tab   { padding:10px 20px; background:none; border:none; border-bottom:2px solid transparent;
+  margin-bottom:-2px; font-size:13px; font-weight:600; color:#666; cursor:pointer; transition:all .15s; }
+.bom-tab--active { color:#003366; border-bottom-color:#003366; }
+.bom-body  { flex:1; overflow-y:auto; padding:20px 24px; }
+
+/* Toolbar */
+.bom-tree-toolbar, .bom-list-toolbar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px;
+}
+.bom-select { padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit; }
+
+/* Empty state */
+.bom-empty { text-align:center; padding:60px 20px; color:#666; }
+.bom-empty-icon { font-size:48px; margin-bottom:12px; }
+.bom-empty p { margin:6px 0; font-size:14px; }
+.bom-empty-hint { font-size:12px; color:#999; }
+.bom-loading { padding:40px; text-align:center; color:#666; }
+
+/* Tree panel */
+.bom-tree-panel { border:1px solid #dde3ea; border-radius:8px; background:#fff; overflow:hidden; }
+.bom-tree-header {
+  display:flex; justify-content:space-between; align-items:center;
+  background:#003366; color:#fff; padding:10px 16px; font-size:13px;
+}
+.bom-tree-root-label { font-size:13px; }
+.bom-tree-count { font-size:12px; opacity:.8; }
+.bom-tree-scroll { overflow-y:auto; max-height:600px; }
+.bom-no-children { padding:24px; text-align:center; color:#888; font-size:13px; }
+
+/* Tree nodes */
+.bom-node {
+  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  border-bottom:1px solid #f0f4f8; cursor:pointer; font-size:13px;
+  transition:background .1s;
+}
+.bom-node:hover { background:#f4f8fd; }
+.bom-node--root { background:#f0f4ff; font-weight:600; }
+.bom-node-toggle { width:14px; text-align:center; color:#003366; font-size:10px; flex-shrink:0; }
+.bom-node-pl     { color:#003366; font-weight:600; min-width:140px; flex-shrink:0; }
+.bom-node-desc   { flex:1; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bom-node-qty    { color:#555; font-size:12px; white-space:nowrap; }
+.bom-node-cat    { padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; white-space:nowrap; }
+.bom-node-cat-a  { background:#fee2e2; color:#991b1b; }
+.bom-node-cat-b  { background:#fef3c7; color:#92400e; }
+.bom-node-cat-c  { background:#d1fae5; color:#065f46; }
+.bom-node-safety { background:#fff3cd; color:#856404; font-size:10px; padding:1px 6px; border-radius:3px; white-space:nowrap; }
+.bom-node-children { border-left:2px solid #dde3ea; margin-left:24px; }
+
+/* Flat list table */
+.bom-list-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid #e0e6ef; }
+.bom-table { width:100%; border-collapse:collapse; font-size:13px; }
+.bom-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-weight:600; font-size:12px; }
+.bom-table td { padding:8px 12px; border-bottom:1px solid #eee; vertical-align:middle; }
+.bom-table tbody tr:hover { background:#f4f8fd; }
+.bom-mono   { font-family:monospace; }
+.bom-muted  { color:#888; }
+.bom-center { text-align:center; }
+.bom-desc   { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bom-badge  { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.bom-cat-a  { background:#fee2e2; color:#991b1b; }
+.bom-cat-b  { background:#fef3c7; color:#92400e; }
+.bom-cat-c  { background:#d1fae5; color:#065f46; }
+.bom-pagination { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.bom-page-btns  { display:flex; align-items:center; gap:8px; font-size:13px; }

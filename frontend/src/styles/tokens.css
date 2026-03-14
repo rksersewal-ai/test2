@@ -3,6 +3,7 @@
  * EDMS ENTERPRISE DESIGN SYSTEM — DESIGN TOKENS
  * Figma source: Iris + Fuschia palette (team library)
  * Spec: enterprise-grade, data-dense, SAP/GOI-portal quality
+ * SPRINT 3: Dark mode token set expanded (Feature #10)
  * ============================================================
  */
 
@@ -11,35 +12,34 @@
    * TYPOGRAPHY — compact enterprise scale
    * Base: 13px | scale driven by --text-scale multiplier
    * ──────────────────────────────────────────────────────── */
-  --text-scale: 1;                          /* controlled by TextScaleContext */
+  --text-scale: 1;
 
   --font-family-base:    'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
   --font-family-mono:    'JetBrains Mono', 'Consolas', 'Courier New', monospace;
 
-  /* Raw sizes (multiplied by --text-scale at usage) */
-  --fs-page-title:  calc(20px * var(--text-scale));  /* h1 */
-  --fs-section:     calc(16px * var(--text-scale));  /* h2 */
-  --fs-card-title:  calc(14px * var(--text-scale));  /* h3 / card headers */
-  --fs-body:        calc(13px * var(--text-scale));  /* default body */
-  --fs-th:          calc(13px * var(--text-scale));  /* table header */
-  --fs-td:          calc(12px * var(--text-scale));  /* table cell */
-  --fs-label:       calc(12px * var(--text-scale));  /* form labels */
-  --fs-btn:         calc(13px * var(--text-scale));  /* buttons */
-  --fs-helper:      calc(11px * var(--text-scale));  /* helper / caption */
-  --fs-badge:       calc(11px * var(--text-scale));  /* badges */
-  --fs-mono:        calc(12px * var(--text-scale));  /* monospaced data */
+  --fs-page-title:  calc(20px * var(--text-scale));
+  --fs-section:     calc(16px * var(--text-scale));
+  --fs-card-title:  calc(14px * var(--text-scale));
+  --fs-body:        calc(13px * var(--text-scale));
+  --fs-th:          calc(13px * var(--text-scale));
+  --fs-td:          calc(12px * var(--text-scale));
+  --fs-label:       calc(12px * var(--text-scale));
+  --fs-btn:         calc(13px * var(--text-scale));
+  --fs-helper:      calc(11px * var(--text-scale));
+  --fs-badge:       calc(11px * var(--text-scale));
+  --fs-mono:        calc(12px * var(--text-scale));
 
-  --fw-regular: 400;
-  --fw-medium:  500;
+  --fw-regular:  400;
+  --fw-medium:   500;
   --fw-semibold: 600;
-  --fw-bold:    700;
+  --fw-bold:     700;
 
-  --lh-tight:   1.2;
-  --lh-snug:    1.35;
-  --lh-normal:  1.5;
+  --lh-tight:  1.2;
+  --lh-snug:   1.35;
+  --lh-normal: 1.5;
 
   /* ────────────────────────────────────────────────────────
-   * SPACING — compact enterprise scale (4px grid)
+   * SPACING — 4px grid
    * ──────────────────────────────────────────────────────── */
   --sp-1:  4px;
   --sp-2:  8px;
@@ -53,10 +53,9 @@
 
   /* ────────────────────────────────────────────────────────
    * COLOUR SYSTEM — Iris (primary) + Fuschia (accent)
-   * Sourced from Figma team library (file: 1wpeEMxQYcZMvlT4PkBMKD)
    * ──────────────────────────────────────────────────────── */
 
-  /* Primary — Iris (Indian Railways indigo-blue) */
+  /* Primary — Iris */
   --c-primary-900: #0F2550;
   --c-primary-800: #1E3A6E;
   --c-primary-700: #1E4080;
@@ -103,37 +102,59 @@
   --c-neutral-50:  #F9FAFB;
   --c-white:       #FFFFFF;
 
-  /* Semantic aliases (Light theme) */
-  --c-bg:           #F0F2F5;           /* app background */
-  --c-surface:      var(--c-white);    /* card / panel surface */
-  --c-surface-alt:  var(--c-neutral-50); /* alternate row / subtle surface */
-  --c-border:       var(--c-neutral-200);
-  --c-border-strong: var(--c-neutral-300);
-  --c-text-primary: var(--c-neutral-900);
+  /* Semantic aliases — LIGHT theme */
+  --c-bg:             #F0F2F5;
+  --c-surface:        var(--c-white);
+  --c-surface-alt:    var(--c-neutral-50);
+  --c-surface-raised: var(--c-white);       /* elevated panels / modals */
+  --c-border:         var(--c-neutral-200);
+  --c-border-strong:  var(--c-neutral-300);
+  --c-text-primary:   var(--c-neutral-900);
   --c-text-secondary: var(--c-neutral-500);
-  --c-text-disabled: var(--c-neutral-400);
-  --c-text-inverse: var(--c-white);
+  --c-text-disabled:  var(--c-neutral-400);
+  --c-text-inverse:   var(--c-white);
+
+  /* Input / form surface */
+  --c-input-bg:       var(--c-white);
+  --c-input-border:   var(--c-neutral-300);
+  --c-input-focus:    var(--c-primary-500);
+
+  /* Table */
+  --c-table-header-bg:    var(--c-neutral-50);
+  --c-table-row-hover:    var(--c-primary-50);
+  --c-table-row-selected: var(--c-primary-100);
+  --c-table-border:       var(--c-neutral-200);
+
+  /* Dropzone */
+  --c-dropzone-bg:           var(--c-primary-50);
+  --c-dropzone-border:       var(--c-primary-300);
+  --c-dropzone-bg-active:    var(--c-primary-100);
+  --c-dropzone-border-active: var(--c-primary-600);
 
   /* Sidebar */
-  --c-sidebar-bg:   var(--c-primary-800);
-  --c-sidebar-text: rgba(255,255,255,0.82);
-  --c-sidebar-active-bg: rgba(255,255,255,0.13);
+  --c-sidebar-bg:           var(--c-primary-800);
+  --c-sidebar-text:         rgba(255,255,255,0.82);
+  --c-sidebar-active-bg:    rgba(255,255,255,0.13);
   --c-sidebar-active-border: var(--c-accent-500);
-  --c-sidebar-hover-bg: rgba(255,255,255,0.07);
+  --c-sidebar-hover-bg:     rgba(255,255,255,0.07);
 
   /* Focus ring */
   --c-focus-ring: rgba(59,89,152,0.30);
 
+  /* Bulk edit bar */
+  --c-bulk-bar-bg:     var(--c-primary-900);
+  --c-bulk-bar-text:   var(--c-white);
+  --c-bulk-bar-border: var(--c-accent-700);
+
   /* ────────────────────────────────────────────────────────
    * BORDER & RADIUS
    * ──────────────────────────────────────────────────────── */
-  --radius-xs:  2px;
-  --radius-sm:  4px;
-  --radius-md:  6px;
-  --radius-lg:  8px;
-  --radius-xl:  12px;
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
   --radius-full: 9999px;
-
   --border-width: 1px;
 
   /* ────────────────────────────────────────────────────────
@@ -185,15 +206,63 @@
   --transition-slow:   0.25s ease;
 }
 
-/* Dark theme override */
+/* =============================================================================
+ * DARK THEME OVERRIDES — [data-theme="dark"]
+ * Applied on <html data-theme="dark"> by ThemeContext.tsx
+ * Sprint 3: Expanded from 8 vars to full set — all surfaces, inputs, tables,
+ *           dropzone, bulk bar now respond correctly to dark mode.
+ * ============================================================================= */
 [data-theme="dark"] {
-  --c-bg:             #0D1117;
-  --c-surface:        #161B22;
-  --c-surface-alt:    #1C2128;
-  --c-border:         #30363D;
-  --c-border-strong:  #484F58;
-  --c-text-primary:   #E6EDF3;
-  --c-text-secondary: #8B949E;
-  --c-text-disabled:  #484F58;
-  --c-sidebar-bg:     #0D1117;
+  /* Base surfaces */
+  --c-bg:              #0D1117;
+  --c-surface:         #161B22;
+  --c-surface-alt:     #1C2128;
+  --c-surface-raised:  #21262D;
+
+  /* Borders */
+  --c-border:          #30363D;
+  --c-border-strong:   #484F58;
+
+  /* Text */
+  --c-text-primary:    #E6EDF3;
+  --c-text-secondary:  #8B949E;
+  --c-text-disabled:   #484F58;
+  --c-text-inverse:    #0D1117;
+
+  /* Inputs */
+  --c-input-bg:        #0D1117;
+  --c-input-border:    #30363D;
+  --c-input-focus:     #58A6FF;
+
+  /* Tables */
+  --c-table-header-bg:    #1C2128;
+  --c-table-row-hover:    #1F2937;
+  --c-table-row-selected: #1D3557;
+  --c-table-border:       #30363D;
+
+  /* Dropzone */
+  --c-dropzone-bg:            #161B22;
+  --c-dropzone-border:        #388BFD;
+  --c-dropzone-bg-active:     #1C2128;
+  --c-dropzone-border-active: #58A6FF;
+
+  /* Sidebar — keep dark sidebar consistent, tweak text brightness */
+  --c-sidebar-bg:           #010409;
+  --c-sidebar-text:         rgba(255,255,255,0.70);
+  --c-sidebar-active-bg:    rgba(255,255,255,0.10);
+  --c-sidebar-hover-bg:     rgba(255,255,255,0.05);
+
+  /* Bulk edit bar */
+  --c-bulk-bar-bg:     #161B22;
+  --c-bulk-bar-text:   #E6EDF3;
+  --c-bulk-bar-border: #58A6FF;
+
+  /* Shadows (darker in dark mode) */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.20);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.45), 0 4px 6px rgba(0,0,0,0.25);
+
+  /* Focus ring adapts to dark blue */
+  --c-focus-ring: rgba(88,166,255,0.35);
 }

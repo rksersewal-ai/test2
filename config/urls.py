@@ -1,32 +1,45 @@
-"""Root URL configuration - PLW EDMS + LDO."""
+# =============================================================================
+# FILE: config/urls.py
+# =============================================================================
 from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
+from django.urls    import path, include
+from django.conf    import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
+    TokenObtainPairView, TokenRefreshView, TokenVerifyView,
 )
 
 API_V1 = 'api/v1/'
 
 urlpatterns = [
-    # Admin
     path('admin/', admin.site.urls),
 
-    # Auth
-    path(API_V1 + 'auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path(API_V1 + 'auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # JWT auth
+    path(API_V1 + 'auth/token/',         TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(),   name='token_refresh'),
+    path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),    name='token_verify'),
 
     # App APIs
-    path(API_V1 + 'core/', include('apps.core.urls')),
-    path(API_V1 + 'edms/', include('apps.edms.urls')),
-    path(API_V1 + 'workflow/', include('apps.workflow.urls')),
-    path(API_V1 + 'ocr/', include('apps.ocr.urls')),
-    path(API_V1 + 'audit/', include('apps.audit.urls')),
-    path(API_V1 + 'dashboard/', include('apps.dashboard.urls')),
+    path(API_V1 + 'core/',       include('apps.core.urls')),
+    path(API_V1 + 'edms/',       include('apps.edms.urls')),
+    path(API_V1 + 'workflow/',   include('apps.workflow.urls')),
+    path(API_V1 + 'ocr/',        include('apps.ocr.urls')),
+    path(API_V1 + 'audit/',      include('apps.audit.urls')),
+    path(API_V1 + 'dashboard/',  include('apps.dashboard.urls')),
+    path(API_V1 + 'ml/',         include('apps.ml_classifier.urls')),
+    path(API_V1 + 'pdf/',        include('apps.pdf_tools.urls')),
+    path(API_V1 + 'sanity/',     include('apps.sanity.urls')),
+    path(API_V1 + 'sharelinks/', include('apps.sharelinks.urls')),
+    path(API_V1 + 'webhooks/',   include('apps.webhooks.urls')),
+    path(API_V1 + 'scanner/',    include('apps.scanner.urls')),
+    path(API_V1 + 'pl-master/',  include('apps.pl_master.urls')),
+    path(API_V1 + 'work/',       include('apps.work_ledger.urls')),
+
+    # Shop Drawing Request module
+    path(API_V1 + 'sdr/',        include('apps.sdr.urls')),
+
+    # Sprint 7: public share-link routes
+    path('s/', include(('apps.sharelinks.urls', 'sharelinks'), namespace='sharelinks-public')),
 ]
 
 if settings.DEBUG:

@@ -1,0 +1,2 @@
+-- TOTP migration removed — deferred to a later release stage.
+-- Do NOT run this file.

@@ -1,0 +1,33 @@
+/* OCR Queue Page */
+.ocr-page { display:flex; flex-direction:column; height:100%; }
+
+.ocr-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 24px; border-bottom:1px solid #eee; }
+.ocr-select  { padding:7px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:inherit; }
+
+.ocr-table-wrap { overflow-x:auto; padding:16px 24px 0; }
+.ocr-table { width:100%; border-collapse:collapse; font-size:13px; border-radius:8px; overflow:hidden; border:1px solid #e0e6ef; }
+.ocr-table th { background:#003366; color:#fff; padding:9px 12px; text-align:left; font-size:12px; font-weight:600; }
+.ocr-table td { padding:8px 12px; border-bottom:1px solid #eee; vertical-align:top; }
+.ocr-table tbody tr:hover { background:#f4f8fd; }
+.ocr-center { text-align:center; }
+.ocr-muted  { color:#888; font-size:12px; }
+.ocr-mono   { font-family:monospace; }
+.ocr-title  { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.ocr-actions{ display:flex; gap:4px; white-space:nowrap; }
+.ocr-error-msg { font-size:10px; color:#dc2626; margin-top:3px; }
+
+.ocr-badge          { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.ocr-badge-pending  { background:#fef3c7; color:#92400e; }
+.ocr-badge-proc     { background:#dbeafe; color:#1e40af; }
+.ocr-badge-done     { background:#d1fae5; color:#065f46; }
+.ocr-badge-fail     { background:#fee2e2; color:#991b1b; }
+
+.ocr-pagination { display:flex; justify-content:space-between; align-items:center; padding:12px 24px; }
+.ocr-page-btns  { display:flex; align-items:center; gap:8px; font-size:13px; }
+
+/* Extracted text modal */
+.ocr-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; display:flex; align-items:center; justify-content:center; }
+.ocr-modal         { background:#fff; border-radius:10px; width:700px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,.2); }
+.ocr-modal-header  { display:flex; justify-content:space-between; align-items:center; background:#003366; color:#fff; padding:12px 18px; border-radius:10px 10px 0 0; font-weight:600; font-size:13px; }
+.ocr-modal-close   { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; }
+.ocr-modal-text    { flex:1; overflow-y:auto; padding:18px; margin:0; font-size:12px; font-family:monospace; line-height:1.7; white-space:pre-wrap; color:#333; }
