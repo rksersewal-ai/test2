@@ -40,3 +40,4 @@ ocr_processed/
 # Logs
 logs/
 *.log
+node_modules/

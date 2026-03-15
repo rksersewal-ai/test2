@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { AuthProvider } from '../context/AuthContext';
+import { Spinner } from '../components/Feedback/Spinner';
 import './LoginPage.css';
 
 function LoginForm() {
@@ -63,7 +64,11 @@ function LoginForm() {
           </div>
           {error && <div className="login-error">{error}</div>}
           <button className="btn btn-primary login-submit" type="submit" disabled={loading}>
-            {loading ? 'Signing in\u2026' : 'Sign In'}
+            {loading ? (
+              <><Spinner size="sm" /> Signing in…</>
+            ) : (
+              'Sign In'
+            )}
           </button>
         </form>
         <div className="login-footer">
