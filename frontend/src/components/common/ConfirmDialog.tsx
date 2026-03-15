@@ -10,7 +10,7 @@
 //     onCancel={() => setConfirm(null)}
 //   />
 // =============================================================================
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './ConfirmDialog.css';
 import Btn from './Btn';
 
@@ -32,15 +32,52 @@ export default function ConfirmDialog({
   danger       = true,
   onConfirm, onCancel,
 }: Props) {
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open && cancelBtnRef.current) {
+      cancelBtnRef.current.focus();
+    }
+  }, [open]);
+
+  // Trap focus or at least close on escape
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
+
   return (
-    <div className="dialog-overlay" onClick={onCancel}>
+    <div
+      className="dialog-overlay"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-desc"
+    >
       <div className="dialog-box" onClick={e => e.stopPropagation()}>
-        <div className="dialog-title">{title}</div>
-        <div className="dialog-message">{message}</div>
+        <div id="confirm-dialog-title" className="dialog-title">{title}</div>
+        <div id="confirm-dialog-desc" className="dialog-message">{message}</div>
         <div className="dialog-actions">
-          <Btn variant="secondary" size="sm" onClick={onCancel}>{cancelLabel}</Btn>
-          <Btn variant={danger ? 'danger' : 'primary'} size="sm" onClick={onConfirm}>
+          <Btn
+            variant="secondary"
+            size="sm"
+            onClick={onCancel}
+            ref={cancelBtnRef}
+          >
+            {cancelLabel}
+          </Btn>
+          <Btn
+            variant={danger ? 'danger' : 'primary'}
+            size="sm"
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Btn>
         </div>

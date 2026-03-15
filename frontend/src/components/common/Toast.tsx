@@ -25,14 +25,25 @@ export default function Toast({ msg, onClose, duration = 3500 }: Props) {
   if (!msg) return null;
 
   return (
-    <div className={`toast toast--${msg.type}`}>
-      <span className="toast-icon">
+    <div
+      className={`toast toast--${msg.type}`}
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
+      <span className="toast-icon" aria-hidden="true">
         {msg.type === 'success' ? '\u2705' :
          msg.type === 'error'   ? '\u274c' :
          msg.type === 'warning' ? '\u26a0\ufe0f' : '\u2139\ufe0f'}
       </span>
       <span className="toast-text">{msg.text}</span>
-      <button className="toast-close" onClick={onClose}>\u2715</button>
+      <button
+        className="toast-close"
+        onClick={onClose}
+        aria-label="Close notification"
+      >
+        <span aria-hidden="true">\u2715</span>
+      </button>
     </div>
   );
 }

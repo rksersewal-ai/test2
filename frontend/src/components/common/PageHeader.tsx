@@ -17,7 +17,13 @@ export default function PageHeader({ title, subtitle, back, children }: Props) {
     <div className="ph-wrap">
       <div className="ph-left">
         {back && (
-          <button className="ph-back" onClick={back}>← Back</button>
+          <button
+            className="ph-back"
+            onClick={back}
+            aria-label="Go back"
+          >
+            <span aria-hidden="true">←</span> Back
+          </button>
         )}
         <div>
           <h1 className="ph-title">{title}</h1>
