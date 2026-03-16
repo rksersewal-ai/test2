@@ -107,9 +107,7 @@ export default function Layout() {
           </button>
         </div>
       </aside>
-      <main className="main-content">
-        <Outlet />
-      </main>
+      <main className="main-content"><Outlet /></main>
     </div>
   );
 }

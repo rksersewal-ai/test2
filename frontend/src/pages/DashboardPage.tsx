@@ -176,6 +176,20 @@ export default function DashboardPage() {
               )
           }
         </div>
+
+        <div className="dash-card">
+          <div className="dash-card-title">⚡ Quick Actions</div>
+          <div className="dash-quick-actions">
+            <button className="dash-qa" onClick={() => navigate('/documents')}>📁 Browse Documents</button>
+            <button className="dash-qa" onClick={() => navigate('/pl-master')}>📂 PL Master</button>
+            <button className="dash-qa" onClick={() => navigate('/work-ledger')}>🗂️ Work Ledger</button>
+            <button className="dash-qa" onClick={() => navigate('/bom')}>🔩 BOM Tree</button>
+            <button className="dash-qa" onClick={() => navigate('/sdr')}>📤 SDR Register</button>
+            <button className="dash-qa" onClick={() => navigate('/ocr-queue')}>🔍 OCR Queue</button>
+            <button className="dash-qa" onClick={() => navigate('/audit')}>🛡️ Audit Logs</button>
+            <button className="dash-qa" onClick={() => navigate('/search')}>🔎 Global Search</button>
+          </div>
+        </div>
       </div>
     </div>
   );
