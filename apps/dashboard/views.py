@@ -38,6 +38,7 @@ class DashboardStatsView(APIView):
         ocr_counts = {row['status']: row['count'] for row in ocr_qs}
 
         from apps.edms.repository import DocumentRepository
+
         by_section = list(DocumentRepository.documents_by_section()[:15])
 
         return Response({
