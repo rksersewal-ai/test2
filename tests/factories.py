@@ -1,16 +1,16 @@
-"""Factory-boy factories for all core models.
+"""
+Factory-boy factories for all core models.
 
 Usage:
-    from tests.factories import DocumentFactory, UserFactory
-    doc = DocumentFactory()                       # unsaved
-    doc = DocumentFactory.create()                # saved to DB
-    doc = DocumentFactory.create(status='DRAFT')  # with override
+    from tests.factories import DocumentFactory, UserFactory, DocumentTypeFactory
+    doc = DocumentFactory()                                  # saved to DB
+    doc = DocumentFactory(document_type=DocumentTypeFactory())
 """
 import factory
 from factory.django import DjangoModelFactory
 from django.utils import timezone
 from apps.core.models import User, Section
-from apps.edms.models import Document, Revision, FileAttachment
+from apps.edms.models import Document, DocumentType, Revision, FileAttachment
 from apps.workflow.models import WorkType, WorkLedgerEntry
 from apps.ocr.models import OCRQueue, OCRResult
 from apps.audit.models import AuditLog
@@ -44,41 +44,56 @@ class AdminUserFactory(UserFactory):
     is_superuser = True
 
 
+class DocumentTypeFactory(DjangoModelFactory):
+    """Factory for apps.edms.models.DocumentType.
+    Used by MetadataField and Phase 1 tests.
+    """
+    class Meta:
+        model = DocumentType
+        django_get_or_create = ('code',)
+
+    code      = factory.Sequence(lambda n: f'DT{n:03d}')
+    name      = factory.LazyAttribute(lambda o: f'Document Type {o.code}')
+    is_active = True
+
+
 class DocumentFactory(DjangoModelFactory):
+    """Factory for apps.edms.models.Document.
+    Uses the correct field names from the amended PRD schema:
+      - document_number  (not doc_number)
+      - document_type FK (not doc_type CharField)
+    """
     class Meta:
         model = Document
 
-    doc_number    = factory.Sequence(lambda n: f'PLW/TEST/2024/{n:04d}')
-    title         = factory.LazyAttribute(lambda o: f'Test Document {o.doc_number}')
-    doc_type      = 'SPEC'
-    status        = 'ACTIVE'
-    section       = factory.SubFactory(SectionFactory)
-    created_by    = factory.SubFactory(UserFactory)
-    language      = 'EN'
+    document_number = factory.Sequence(lambda n: f'PLW/TEST/2024/{n:04d}')
+    title           = factory.LazyAttribute(lambda o: f'Test Document {o.document_number}')
+    document_type   = factory.SubFactory(DocumentTypeFactory)
+    status          = Document.Status.ACTIVE
+    section         = factory.SubFactory(SectionFactory)
+    created_by      = factory.SubFactory(UserFactory)
 
 
 class RevisionFactory(DjangoModelFactory):
     class Meta:
         model = Revision
 
-    document      = factory.SubFactory(DocumentFactory)
+    document        = factory.SubFactory(DocumentFactory)
     revision_number = factory.Sequence(lambda n: f'R{n:02d}')
-    status        = 'ACTIVE'
-    created_by    = factory.SubFactory(UserFactory)
-    effective_date = factory.LazyFunction(timezone.now)
+    status          = Revision.Status.CURRENT
+    created_by      = factory.SubFactory(UserFactory)
+    revision_date   = factory.LazyFunction(lambda: timezone.now().date())
 
 
 class FileAttachmentFactory(DjangoModelFactory):
     class Meta:
         model = FileAttachment
 
-    document      = factory.SubFactory(DocumentFactory)
-    revision      = factory.SubFactory(RevisionFactory)
-    file_name     = factory.Sequence(lambda n: f'test_file_{n}.pdf')
-    file_size     = 102400
-    mime_type     = 'application/pdf'
-    uploaded_by   = factory.SubFactory(UserFactory)
-    ocr_status    = 'PENDING'
+    revision        = factory.SubFactory(RevisionFactory)
+    file_name       = factory.Sequence(lambda n: f'test_file_{n}.pdf')
+    file_size_bytes = 102400
+    file_type       = FileAttachment.FileType.PDF
+    uploaded_by     = factory.SubFactory(UserFactory)
 
 
 class WorkTypeFactory(DjangoModelFactory):
@@ -86,8 +101,8 @@ class WorkTypeFactory(DjangoModelFactory):
         model = WorkType
         django_get_or_create = ('code',)
 
-    name   = factory.Sequence(lambda n: f'Work Type {n}')
-    code   = factory.Sequence(lambda n: f'WK{n:03d}')
+    name      = factory.Sequence(lambda n: f'Work Type {n}')
+    code      = factory.Sequence(lambda n: f'WK{n:03d}')
     is_active = True
 
 
@@ -107,9 +122,8 @@ class OCRQueueFactory(DjangoModelFactory):
     class Meta:
         model = OCRQueue
 
-    file_attachment = factory.SubFactory(FileAttachmentFactory)
-    status          = 'PENDING'
-    priority        = 5
+    status   = 'PENDING'
+    priority = 5
 
 
 class OCRResultFactory(DjangoModelFactory):
@@ -126,10 +140,10 @@ class AuditLogFactory(DjangoModelFactory):
     class Meta:
         model = AuditLog
 
-    user          = factory.SubFactory(UserFactory)
-    username      = factory.LazyAttribute(lambda o: o.user.username)
-    module        = AuditLog.Module.EDMS
-    action        = 'DOCUMENT_CREATE'
-    entity_type   = 'Document'
-    entity_id     = factory.Sequence(lambda n: n)
-    success       = True
+    user        = factory.SubFactory(UserFactory)
+    username    = factory.LazyAttribute(lambda o: o.user.username)
+    module      = AuditLog.Module.EDMS
+    action      = 'DOCUMENT_CREATE'
+    entity_type = 'Document'
+    entity_id   = factory.Sequence(lambda n: n)
+    success     = True
