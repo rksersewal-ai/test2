@@ -9,14 +9,18 @@ interface Props {
   onChange:    (v: string) => void;
   placeholder?: string;
   width?:       number | string;
+  id?:          string;
+  'aria-label'?: string;
 }
 
-export default function SearchBar({ value, onChange, placeholder = 'Search…', width = 320 }: Props) {
+export default function SearchBar({ value, onChange, placeholder = 'Search…', width = 320, id, 'aria-label': ariaLabel }: Props) {
+  const defaultLabel = 'Search';
   return (
     <div className="search-bar" style={{ width }}>
       <span className="search-icon" aria-hidden="true">🔍</span>
       <input
-        type="text"
+        id={id}
+        type="search"
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
