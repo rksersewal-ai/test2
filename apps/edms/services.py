@@ -5,7 +5,7 @@
 #            read the same count and generate the same revision number.
 # =============================================================================
 from django.db import transaction
-from apps.edms.models import Document, Revision, FileAttachment
+from apps.edms.models import Document, Revision
 from apps.audit.services import AuditService
 
 
