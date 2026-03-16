@@ -10,6 +10,7 @@ import { RightPanel } from '../components/preview/RightPanel';
 import { OCREntityModal } from '../components/preview/OCREntityModal';
 import type { OCREntity, RelatedDocument, RotationDeg, ZoomLevel } from '../types/preview';
 import styles from './DocumentPreviewPage.module.css';
+import './DocumentPreviewPremium.css';
 
 const ZOOM_STEPS: ZoomLevel[] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 

@@ -149,19 +149,27 @@ const BOMNodeCard = memo(({ data, selected }: { data: BOMNodeData; selected?: bo
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
+        <div style={{ display: 'flex', gap: 4, marginTop: 7, flexWrap: 'wrap' }}>
           <button onClick={() => data.onOpenPL?.(data.pl_number)} style={{
-            flex: 1, fontSize: 10, padding: '3px 0', borderRadius: 4, cursor: 'pointer',
+            flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 4, cursor: 'pointer',
             background: 'linear-gradient(135deg,#4b6cb7,#182848)', color: '#fff', border: 'none',
           }}>PL</button>
+          
+          <button onClick={() => data.onWhereUsed?.(data.pl_number)} style={{
+            flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 4, cursor: 'pointer',
+            background: 'linear-gradient(135deg,#6366f1,#4338ca)', color: '#fff', border: 'none',
+          }} title="Where Used Impact Analysis">
+            Where Used
+          </button>
+
           {data.isAdmin && (
             <>
               <button onClick={() => data.onAddChild?.(data.id)} style={{
-                flex: 1, fontSize: 10, padding: '3px 0', borderRadius: 4, cursor: 'pointer',
+                flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 4, cursor: 'pointer',
                 background: 'linear-gradient(135deg,#14532d,#052e16)', color: '#86efac', border: 'none',
               }}>+ Child</button>
               <button onClick={() => data.onDelete?.(data.id)} style={{
-                fontSize: 10, padding: '3px 7px', borderRadius: 4, cursor: 'pointer',
+                fontSize: 10, padding: '4px 7px', borderRadius: 4, cursor: 'pointer',
                 background: '#3f1010', color: '#fca5a5', border: '1px solid #7f1d1d',
               }}>✕</button>
             </>

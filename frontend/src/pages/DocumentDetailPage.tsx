@@ -12,11 +12,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader, Btn, ConfirmDialog, Toast } from '../components/common';
 import type { ToastMsg } from '../components/common';
 import { documentService } from '../services/documentService';
+import { usePreviewTabs } from '../context/PreviewTabsContext';
 import './DocumentDetailPage.css';
 
 export default function DocumentDetailPage() {
   const { id }   = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openTab } = usePreviewTabs();
   const docId    = Number(id);
 
   const [doc,          setDoc]          = useState<any>(null);
@@ -112,7 +114,19 @@ export default function DocumentDetailPage() {
         subtitle={doc.title}
         back={() => navigate('/documents')}
       >
-        <Btn size="sm" variant="secondary" onClick={() => navigate(`/documents/${docId}/preview`)}>
+        <Btn size="sm" variant="secondary" onClick={() => {
+          openTab({
+            id: `doc-${docId}`,
+            docNumber: doc?.document_number ?? doc?.drawing_number ?? `DOC-${docId}`,
+            title: doc?.title ?? `Document ${docId}`,
+            fileUrl: doc?.file_url ?? `/api/v1/edms/documents/${docId}/file/`,
+            fileId: docId,
+            documentId: docId,
+            pageCount: 1,
+            mimeType: 'application/pdf',
+          });
+          navigate('/preview');
+        }}>
           📄 Preview
         </Btn>
         <Btn size="sm" variant="secondary" loading={downloading} onClick={handleDownload}>

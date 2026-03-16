@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Btn, SearchBar, ConfirmDialog, Toast } from '../components/common';
 import type { ToastMsg } from '../components/common';
 import { documentService } from '../services/documentService';
+import { usePreviewTabs } from '../context/PreviewTabsContext';
 import './DocumentListPage.css';
 
 const STATUS_CLASS: Record<string,string> = {
@@ -26,6 +27,7 @@ export default function DocumentListPage() {
   const [searchParams] = useSearchParams();
   const [status,     setStatus]     = useState(searchParams.get('status') ?? '');
   const navigate = useNavigate();
+  const { openTab } = usePreviewTabs();
   const PAGE_SIZE = 20;
 
   const load = useCallback(async () => {
@@ -107,7 +109,19 @@ export default function DocumentListPage() {
                 <td className="doc-muted" style={{fontSize:11}}>{d.updated_at ? new Date(d.updated_at).toLocaleDateString('en-IN') : '—'}</td>
                 <td className="doc-actions">
                   <Btn size="sm" variant="ghost"    onClick={() => navigate(`/documents/${d.id}`)}>👁 View</Btn>
-                  <Btn size="sm" variant="secondary" onClick={() => navigate(`/documents/${d.id}/preview`)}>📄 Preview</Btn>
+                  <Btn size="sm" variant="secondary" onClick={() => {
+                      openTab({
+                        id: `doc-${d.id}`,
+                        docNumber: d.document_number ?? d.drawing_number ?? `DOC-${d.id}`,
+                        title: d.title,
+                        fileUrl: d.file_url ?? `/api/v1/edms/documents/${d.id}/file/`,
+                        fileId: d.id,
+                        documentId: d.id,
+                        pageCount: 1,
+                        mimeType: 'application/pdf',
+                      });
+                      navigate('/preview');
+                  }}>📄 Preview</Btn>
                   <Btn size="sm" variant="danger"    onClick={() => setConfirm(d.id)}>🗑</Btn>
                 </td>
               </tr>

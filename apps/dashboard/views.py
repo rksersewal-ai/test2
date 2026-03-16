@@ -28,17 +28,26 @@ class DashboardStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        doc_qs = Document.objects.values('status').annotate(count=Count('id'))
-        doc_counts = {row['status']: row['count'] for row in doc_qs}
+        # Documents
+        doc_counts = {
+            item['status']: item['count']
+            for item in Document.objects.values('status').annotate(count=Count('status'))
+        }
 
-        wl_qs = WorkLedgerEntry.objects.values('status').annotate(count=Count('id'))
-        wl_counts = {row['status']: row['count'] for row in wl_qs}
+        # Work ledger
+        wl_counts = {
+            item['status']: item['count']
+            for item in WorkLedgerEntry.objects.values('status').annotate(count=Count('status'))
+        }
 
-        ocr_qs = OCRQueue.objects.values('status').annotate(count=Count('id'))
-        ocr_counts = {row['status']: row['count'] for row in ocr_qs}
+        # OCR
+        ocr_counts = {
+            item['status']: item['count']
+            for item in OCRQueue.objects.values('status').annotate(count=Count('status'))
+        }
 
+        # Documents by section (top 15)
         from apps.edms.repository import DocumentRepository
-
         by_section = list(DocumentRepository.documents_by_section()[:15])
 
         return Response({
@@ -64,6 +73,50 @@ class DashboardStatsView(APIView):
                 'manual_review': ocr_counts.get('MANUAL_REVIEW', 0),
             },
             'documents_by_section': by_section,
+        })
+
+
+class DashboardTrendView(APIView):
+    """
+    Returns time-series data for documents and work ledger entries for charts.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models.functions import TruncMonth
+        from django.db.models import Count
+        import datetime
+
+        # Get the last 6 months
+        today = datetime.date.today()
+        six_months_ago = today.replace(day=1) - datetime.timedelta(days=150)
+
+        # Documents trend
+        docs_trend = list(Document.objects.filter(created_at__gte=six_months_ago)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month'))
+
+        # Work Ledger trend
+        wl_trend = list(WorkLedgerEntry.objects.filter(created_at__gte=six_months_ago)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month'))
+
+        # Format output
+        for d in docs_trend:
+            if d['month']:
+                d['month'] = d['month'].strftime('%Y-%m')
+        
+        for w in wl_trend:
+            if w['month']:
+                w['month'] = w['month'].strftime('%Y-%m')
+
+        return Response({
+            'documents': docs_trend,
+            'work_ledger': wl_trend
         })
 
 

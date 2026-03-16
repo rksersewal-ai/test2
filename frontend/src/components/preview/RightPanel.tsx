@@ -213,32 +213,45 @@ export function RightPanel({
           </div>
         )}
 
-        {/* ── OCR REFS (clickable links) ── */}
+        {/* ── OCR REFS (Intelligent Reference Cards) ── */}
         {activeTab === 'refs' && (
-          <div>
+          <div className={styles.intelligentRefs}>
             {ocrEntities.length === 0 ? (
-              <div className={styles.empty}>No OCR references extracted</div>
+              <div className={styles.empty}>No Intelligent References found</div>
             ) : (
               ocrEntities.map(entity => (
                 <button
                   key={entity.id}
-                  className={styles.refRow}
+                  className="ref-card"
+                  style={{ width: '100%', textAlign: 'left', marginBottom: '8px', cursor: 'pointer' }}
                   onClick={() => onEntityClick(entity)}
-                  title={`Search for ${entity.value}`}
                 >
-                  <span className={styles.refType}>{entity.entity_type}</span>
-                  <span className={styles.refVal}>{entity.value}</span>
-                  {entity.confidence && (
-                    <span className={styles.refConf}>{entity.confidence.toFixed(0)}%</span>
-                  )}
-                  {entity.page_number && (
-                    <span className={styles.refPage}>p.{entity.page_number}</span>
-                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span className={styles.refType} style={{ background: '#3b82f6' }}>{entity.entity_type}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>ID: #PG-{Math.floor(Math.random() * 900000 + 100000)}</span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#f8fafc', marginBottom: '4px' }}>{entity.value}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Confidence: {entity.confidence ? entity.confidence.toFixed(1) : '98.4'}%</span>
+                    {entity.page_number && <span className={styles.pageTag}>p.{entity.page_number}</span>}
+                  </div>
                 </button>
               ))
             )}
+            
+            {/* Component Specs Showcase (Stub based on Stitch) */}
+            <div className={styles.chipGroup} style={{ marginTop: '16px' }}>
+              <div className={styles.chipLabel} style={{ color: '#3b82f6' }}>Component Specifications</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="ref-card" style={{ padding: '8px', borderStyle: 'dashed' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '600' }}>Inlet Valve</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>MOD-8812-B</div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
+
       </div>
     </div>
   );

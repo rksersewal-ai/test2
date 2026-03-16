@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { bomService } from '../../services/bomService';
 import BOMNodeCard, { BOMNodeData } from './BOMNodeCard';
+import WhereUsedModal from './WhereUsedModal';
 
 const LOCO_TYPES = ['WAG9','WAG9H','WAG12B','WAP7','WAP5','DETC','MEMU','DEMU','WDG4','WDP4'];
 
@@ -64,6 +65,7 @@ export default function BOMPage() {
   const [flash,       setFlash]       = useState<Flash|null>(null);
   const [modal,       setModal]       = useState<ModalState>({ type: null });
   const [form,        setForm]        = useState<Record<string, string>>({});
+  const [whereUsedPL, setWhereUsedPL] = useState<string>('');
   const dragTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const showFlash = (msg: string, type: 'success'|'error' = 'success') => {
@@ -91,6 +93,7 @@ export default function BOMPage() {
           onEdit:     (nid: number) => openModal('editNode', nid),
           onDelete:   (nid: number) => openModal('deleteNode', nid),
           onMove:     (nid: number) => openModal('moveNode', nid),
+          onWhereUsed:(pl: string) => setWhereUsedPL(pl),
         },
       }));
       setNodes(withCb);
@@ -346,6 +349,10 @@ export default function BOMPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {whereUsedPL && (
+        <WhereUsedModal plNumber={whereUsedPL} onClose={() => setWhereUsedPL('')} />
       )}
     </div>
   );

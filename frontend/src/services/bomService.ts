@@ -37,4 +37,7 @@ export const bomService = {
 
   saveCanvas: (id: number, x: number, y: number) =>
     api.patch(`${B}/nodes/${id}/canvas/`, { x, y }).then(r => r.data),
+
+  getWhereUsed: (plNumber: string) =>
+    api.get(`${B}/where-used/${encodeURIComponent(plNumber)}/`).then(r => r.data),
 };

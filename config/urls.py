@@ -33,6 +33,8 @@ urlpatterns = [
     path(API_V1 + 'ocr/',        include('apps.ocr.urls')),
     path(API_V1 + 'audit/',      include('apps.audit.urls')),
     path(API_V1 + 'dashboard/',  include('apps.dashboard.urls')),
+    path(API_V1 + 'metadata/',   include('apps.metadata.urls')),
+    path(API_V1 + 'versioning/', include('apps.versioning.urls')),
     path(API_V1 + 'ml/',         include('apps.ml_classifier.urls')),
     path(API_V1 + 'pdf/',        include('apps.pdf_tools.urls')),
     path(API_V1 + 'sanity/',     include('apps.sanity.urls')),
@@ -52,6 +54,9 @@ urlpatterns = [
 
     # BUG FIX 1b: prototype was MISSING — caused 404 on all /api/v1/prototype/ calls
     path(API_V1 + 'prototype/',  include('prototype.urls')),
+
+    # RESTORED: BOM app was MISSING
+    path(API_V1 + 'bom/',        include('bom.urls')),
 
     # ---- Sprint 7: public share-link routes ----------------------------
     path('s/', include(('apps.sharelinks.urls', 'sharelinks'), namespace='sharelinks-public')),

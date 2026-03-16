@@ -27,7 +27,7 @@ export function ViewerToolbar({
   fileUrl, docNumber,
 }: Props) {
   return (
-    <div className={styles.toolbar} role="toolbar" aria-label="Document viewer toolbar">
+    <div className={`${styles.toolbar} glass-toolbar`} role="toolbar" aria-label="Document viewer toolbar">
       {/* Left: zoom controls */}
       <div className={styles.group}>
         <button className={styles.btn} onClick={onZoomOut} title="Zoom out">−</button>

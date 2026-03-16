@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
+    'apps.metadata',         # RESTORED Feature
+    'apps.versioning',       # RESTORED Feature
     'apps.notifications',
     'apps.ml_classifier',
     'apps.pdf_tools',
@@ -49,6 +51,7 @@ INSTALLED_APPS = [
     # Backend standalone apps (backend/ package, sit on sys.path via manage.py)
     'config_mgmt',           # BUG FIX: LocoConfig + ECN — was missing, migrations would fail
     'prototype',             # BUG FIX: Prototype Inspection — was missing, migrations would fail
+    'bom',                   # RESTORED Feature
 ]
 
 MIDDLEWARE = [

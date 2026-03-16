@@ -216,3 +216,39 @@ class BOMNodeCanvasView(APIView):
         node.canvas_y = float(request.data.get('y', node.canvas_y))
         node.save(update_fields=['canvas_x', 'canvas_y', 'updated_at'])
         return Response({'id': node.id, 'x': node.canvas_x, 'y': node.canvas_y})
+
+
+class BOMWhereUsedView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pl_number):
+        occurrences = BOMNode.objects.filter(pl_number=pl_number, is_active=True).select_related('tree')
+        
+        results = []
+        for occ in occurrences:
+            # Build up the path from this item to the root
+            path = []
+            cur = occ
+            visited = set()
+            while cur and cur.id not in visited:
+                visited.add(cur.id)
+                path.append({
+                    'id': cur.id,
+                    'pl_number': cur.pl_number,
+                    'description': cur.description,
+                    'node_type': cur.node_type,
+                    'quantity': str(cur.quantity)
+                })
+                cur = cur.parent
+            
+            # Reverse path so it goes from root -> component
+            path.reverse()
+            
+            results.append({
+                'tree_id': occ.tree.id,
+                'loco_type': occ.tree.loco_type,
+                'variant': occ.tree.variant,
+                'path': path
+            })
+            
+        return Response(results)

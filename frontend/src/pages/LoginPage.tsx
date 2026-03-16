@@ -3,9 +3,10 @@
 // BUG FIX: Updated to use useAuth() (not useAuthContext directly).
 // Added proper error display, loading state, and redirect if already logged in.
 // =============================================================================
-import { useState, FormEvent } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth'; // Assuming this is the correct path for the original file's useAuth
+import { Spinner } from '../components/Feedback/Spinner'; // Added Spinner import
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -19,7 +20,7 @@ export default function LoginPage() {
   // Already logged in — go to dashboard
   if (isAuthenticated) return <Navigate to="/" replace />;
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Changed FormEvent to React.FormEvent for consistency with Spinner example
     e.preventDefault();
     setError('');
     setLoading(true);

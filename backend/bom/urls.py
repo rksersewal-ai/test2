@@ -3,6 +3,7 @@ from .views import (
     BOMTreeListView, BOMTreeDetailView, BOMTreeNodesView,
     BOMReactFlowView, BOMSnapshotListView, BOMNodeCreateView,
     BOMNodeDetailView, BOMNodeMoveView, BOMNodeCanvasView,
+    BOMWhereUsedView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('nodes/<int:pk>/',                 BOMNodeDetailView.as_view()),
     path('nodes/<int:pk>/move/',            BOMNodeMoveView.as_view()),
     path('nodes/<int:pk>/canvas/',          BOMNodeCanvasView.as_view()),
+    path('where-used/<str:pl_number>/',     BOMWhereUsedView.as_view()),
 ]
