@@ -6,6 +6,7 @@
 # =============================================================================
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Count
 from rest_framework.views import APIView
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
@@ -27,20 +28,14 @@ class DashboardStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        doc_qs     = Document.objects.values('status')
-        doc_counts = {}
-        for row in doc_qs.iterator():
-            doc_counts[row['status']] = doc_counts.get(row['status'], 0) + 1
+        doc_qs = Document.objects.values('status').annotate(count=Count('id'))
+        doc_counts = {row['status']: row['count'] for row in doc_qs}
 
-        wl_qs     = WorkLedgerEntry.objects.values('status')
-        wl_counts = {}
-        for row in wl_qs.iterator():
-            wl_counts[row['status']] = wl_counts.get(row['status'], 0) + 1
+        wl_qs = WorkLedgerEntry.objects.values('status').annotate(count=Count('id'))
+        wl_counts = {row['status']: row['count'] for row in wl_qs}
 
-        ocr_qs     = OCRQueue.objects.values('status')
-        ocr_counts = {}
-        for row in ocr_qs.iterator():
-            ocr_counts[row['status']] = ocr_counts.get(row['status'], 0) + 1
+        ocr_qs = OCRQueue.objects.values('status').annotate(count=Count('id'))
+        ocr_counts = {row['status']: row['count'] for row in ocr_qs}
 
         from apps.edms.repository import DocumentRepository
         by_section = list(DocumentRepository.documents_by_section()[:15])
