@@ -1,0 +1,69 @@
+# =============================================================================
+# FILE: render.yaml
+# Render.com deployment config for PLW EDMS + LDO Django backend.
+# Docs: https://render.com/docs/blueprint-spec
+# =============================================================================
+services:
+  - type: web
+    name: edms-ldo-backend
+    runtime: python
+    region: singapore   # closest to India
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/v1/health/
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_NAME
+        fromDatabase:
+          name: edms-ldo-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: edms-ldo-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: edms-ldo-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: edms-ldo-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: edms-ldo-db
+          property: port
+      - key: CELERY_BROKER_URL
+        sync: false   # Set manually in Render dashboard (use Redis URL)
+      - key: CELERY_RESULT_BACKEND
+        sync: false   # Set manually in Render dashboard (use Redis URL)
+      - key: ALLOWED_HOSTS
+        sync: false   # Set to your Render URL e.g.: edms-ldo-backend.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # Set to your Vercel URL e.g.: https://your-app.vercel.app
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false   # Same as CORS_ALLOWED_ORIGINS
+      - key: DISABLE_LAN_RESTRICTION
+        value: "True"  # CRITICAL: disables LanOnlyMiddleware on cloud
+      - key: SECURE_SSL_REDIRECT
+        value: "False" # Render handles HTTPS termination at proxy level
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: CSRF_COOKIE_SECURE
+        value: "True"
+      - key: OCR_WATCH_FOLDER
+        value: /tmp/ocr_inbox
+      - key: TESSERACT_CMD
+        value: tesseract   # system tesseract on Linux
+      - key: USE_X_FORWARDED_HOST
+        value: "True"
+
+databases:
+  - name: edms-ldo-db
+    databaseName: edms_ldo
+    user: edms_user
+    plan: free
