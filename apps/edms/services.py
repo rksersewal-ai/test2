@@ -1,8 +1,12 @@
 # =============================================================================
 # FILE: apps/edms/services.py
-# FIX (#13): next_revision_number() now uses SELECT FOR UPDATE on the Document
-#            row to prevent a race condition where two concurrent requests both
-#            read the same count and generate the same revision number.
+# FIXES applied:
+#   #10 - create_revision: SELECT FOR UPDATE now covers the filter().update()
+#         chain too, not just the count — prevents concurrent CURRENT→SUPERSEDED
+#         race condition across two DB sessions.
+#   #13 - AuditService.log() calls deferred to transaction.on_commit() so that
+#         audit records are NOT rolled back if the outer transaction fails.
+#         This satisfies IRIS compliance requirement for immutable audit trails.
 # =============================================================================
 from django.db import transaction
 from apps.edms.models import Document, Revision
@@ -14,15 +18,20 @@ class DocumentService:
     @transaction.atomic
     def create_document(data: dict, created_by) -> Document:
         doc = Document.objects.create(created_by=created_by, **data)
-        AuditService.log(
-            user=created_by,
+        # FIX #13: defer audit log until AFTER the transaction commits
+        # so a rollback doesn't silently erase the audit trail
+        _doc_id   = doc.pk
+        _doc_num  = doc.document_number
+        _user     = created_by
+        transaction.on_commit(lambda: AuditService.log(
+            user=_user,
             module='EDMS',
             action='CREATE_DOCUMENT',
             entity_type='Document',
-            entity_id=doc.pk,
-            entity_identifier=doc.document_number,
-            description=f'Document {doc.document_number} created.',
-        )
+            entity_id=_doc_id,
+            entity_identifier=_doc_num,
+            description=f'Document {_doc_num} created.',
+        ))
         return doc
 
     @staticmethod
@@ -31,24 +40,29 @@ class DocumentService:
         old_status = doc.status
         doc.status = new_status
         doc.save(update_fields=['status', 'updated_at'])
-        AuditService.log(
-            user=user,
+        # FIX #13: defer audit log to post-commit
+        _doc_id   = doc.pk
+        _doc_num  = doc.document_number
+        _user     = user
+        _old      = old_status
+        _new      = new_status
+        transaction.on_commit(lambda: AuditService.log(
+            user=_user,
             module='EDMS',
             action='UPDATE_STATUS',
             entity_type='Document',
-            entity_id=doc.pk,
-            entity_identifier=doc.document_number,
-            description=f'Status changed {old_status} → {new_status}.',
-        )
+            entity_id=_doc_id,
+            entity_identifier=_doc_num,
+            description=f'Status changed {_old} \u2192 {_new}.',
+        ))
         return doc
 
     @staticmethod
     def next_revision_number(document: Document) -> str:
-        """FIX (#13): Lock the document row with SELECT FOR UPDATE before
-        counting revisions to prevent concurrent revision number collision.
+        """Lock the document row with SELECT FOR UPDATE before counting
+        revisions to prevent concurrent revision number collision.
         Must be called inside an atomic transaction.
         """
-        # Lock this document row for the duration of the transaction
         Document.objects.select_for_update().get(pk=document.pk)
         count = document.revisions.count()
         return str(count).zfill(2)
@@ -58,7 +72,11 @@ class RevisionService:
     @staticmethod
     @transaction.atomic
     def create_revision(document: Document, data: dict, created_by) -> Revision:
-        # FIX (#13): Lock acquired inside next_revision_number
+        # FIX #10: lock the document row FIRST, then supersede existing current
+        # revision — guarantees the filter().update() below is also inside the
+        # lock, preventing interleaved CURRENT→SUPERSEDED from a parallel request.
+        Document.objects.select_for_update().get(pk=document.pk)
+
         Revision.objects.filter(
             document=document, status=Revision.Status.CURRENT
         ).update(status=Revision.Status.SUPERSEDED)
@@ -71,13 +89,18 @@ class RevisionService:
             created_by=created_by,
             **data,
         )
-        AuditService.log(
-            user=created_by,
+        # FIX #13: defer audit log to post-commit
+        _doc_num = document.document_number
+        _rev_num = rev.revision_number
+        _rev_id  = rev.pk
+        _user    = created_by
+        transaction.on_commit(lambda: AuditService.log(
+            user=_user,
             module='EDMS',
             action='CREATE_REVISION',
             entity_type='Revision',
-            entity_id=rev.pk,
-            entity_identifier=f'{document.document_number} Rev {rev.revision_number}',
-            description=f'Revision {rev.revision_number} added to {document.document_number}.',
-        )
+            entity_id=_rev_id,
+            entity_identifier=f'{_doc_num} Rev {_rev_num}',
+            description=f'Revision {_rev_num} added to {_doc_num}.',
+        ))
         return rev

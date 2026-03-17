@@ -1,12 +1,9 @@
 # =============================================================================
 # FILE: apps/edms/views.py
-# BUG FIX #14: download() and file() actions called attachment.file_path.open('rb')
-#   directly without checking if the physical file exists on disk.
-#   If the file was deleted/moved after upload (migration, backup restore,
-#   manual cleanup), the endpoint crashed with an unhandled ValueError /
-#   FileNotFoundError → HTTP 500 instead of a clean HTTP 404.
-#   Fixed: added _safe_open_attachment() helper that checks path existence
-#   and raises Http404 with a clear message if the file is gone.
+# FIXES applied:
+#   #16 - bulk_update: IDs list capped at MAX_BULK_IDS=500 to prevent table lock
+#   #22 - bulk_update: section_id validated against active sections before update
+# (FIX #14 already applied in previous commit: _safe_open_attachment)
 # =============================================================================
 import os
 from django.utils import timezone
@@ -36,8 +33,11 @@ from apps.edms.serializers import (
 from apps.edms.filters import DocumentFilter, RevisionFilter, FileAttachmentFilter
 from apps.edms.repository import DocumentRepository, RevisionRepository
 from apps.edms.services import DocumentService, RevisionService
+from apps.core.models import Section
 from apps.core.permissions import IsEngineerOrAbove, IsAdminOrSectionHead, CanManageDropdowns
 from apps.core.permissions import get_user_role, ROLE_ADMIN, ROLE_SECTION_HEAD
+
+MAX_BULK_IDS = 500   # FIX #16: safety cap to prevent full-table lock
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -71,7 +71,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
         )
         if revision is None:
             raise Http404('No revision found for this document.')
-
         attachment = revision.files.order_by('-is_primary', '-uploaded_at').first()
         if attachment is None:
             raise Http404('No file attached to this document.')
@@ -79,11 +78,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _safe_open_attachment(attachment: FileAttachment):
-        """
-        BUG FIX #14: Guard against missing physical files.
-        Raises Http404 with a descriptive message instead of crashing
-        with ValueError / FileNotFoundError → HTTP 500.
-        """
         if not attachment.file_path:
             raise Http404('File record exists but no path is stored.')
         try:
@@ -97,8 +91,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         return attachment.file_path.open('rb')
 
-    # ---- Existing actions ----
-
     @action(detail=False, methods=['get'], url_path='search')
     def search(self, request):
         q = request.query_params.get('q', '').strip()
@@ -108,8 +100,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         qs   = DocumentRepository.fulltext_search(q)
         page = self.paginate_queryset(qs)
         if page is not None:
-            return self.get_paginated_response(DocumentListSerializer(page, many=True).data)
-        return Response(DocumentListSerializer(qs, many=True).data)
+            return self.get_paginated_response(DocumentListSerializer(page, many=True, context={'request': request}).data)
+        return Response(DocumentListSerializer(qs, many=True, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='change-status')
     def change_status(self, request, pk=None):
@@ -152,7 +144,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         doc        = self.get_object()
         attachment = self._latest_attachment(doc)
-        # BUG FIX #14: use _safe_open_attachment to avoid 500 on missing file
         file_obj   = self._safe_open_attachment(attachment)
         return FileResponse(file_obj, as_attachment=True, filename=attachment.file_name)
 
@@ -160,7 +151,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def file(self, request, pk=None):
         doc        = self.get_object()
         attachment = self._latest_attachment(doc)
-        # BUG FIX #14: use _safe_open_attachment to avoid 500 on missing file
         file_obj   = self._safe_open_attachment(attachment)
         return FileResponse(file_obj, filename=attachment.file_name)
 
@@ -170,26 +160,22 @@ class DocumentViewSet(viewsets.ModelViewSet):
         related_qs = (
             Document.objects
             .select_related('document_type')
-            .filter(
-                Q(category=doc.category) | Q(document_type=doc.document_type)
-            )
+            .filter(Q(category=doc.category) | Q(document_type=doc.document_type))
             .exclude(pk=doc.pk)
             .order_by('document_number')[:10]
         )
         payload = [
             {
-                'id':           related.pk,
-                'doc_number':   related.document_number,
-                'title':        related.title,
-                'doc_type':     related.document_type.name if related.document_type else '',
-                'status':       related.status,
-                'relation_type':'LINKED',
+                'id':            related.pk,
+                'doc_number':    related.document_number,
+                'title':         related.title,
+                'doc_type':      related.document_type.name if related.document_type else '',
+                'status':        related.status,
+                'relation_type': 'LINKED',
             }
             for related in related_qs
         ]
         return Response(payload)
-
-    # ---- Sprint 1: Feature #9 — Custom Fields ----
 
     @action(detail=True, methods=['get', 'post'], url_path='custom-fields')
     def custom_fields(self, request, pk=None):
@@ -221,8 +207,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 results.append(obj)
         return Response(DocumentCustomFieldSerializer(results, many=True).data)
 
-    # ---- Sprint 1: Feature #6 — Bulk Update ----
-
     @action(detail=False, methods=['post'], url_path='bulk-update',
             permission_classes=[permissions.IsAuthenticated, IsAdminOrSectionHead])
     def bulk_update(self, request):
@@ -231,42 +215,43 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if not ids or not isinstance(ids, list):
             return Response({'error': 'ids must be a non-empty list.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        # FIX #16: cap ids to prevent locking thousands of rows
+        if len(ids) > MAX_BULK_IDS:
+            return Response(
+                {'error': f'Maximum {MAX_BULK_IDS} documents per bulk update. Got {len(ids)}.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         allowed_fields = {'status', 'section_id', 'document_type_id', 'category_id'}
         update_data    = {k: v for k, v in fields.items() if k in allowed_fields}
         if not update_data:
             return Response({'error': f'No valid fields. Allowed: {allowed_fields}'},
                             status=status.HTTP_400_BAD_REQUEST)
+        # FIX #22: validate section_id against active sections only
+        if 'section_id' in update_data:
+            section_id = update_data['section_id']
+            if not Section.objects.filter(pk=section_id, is_active=True).exists():
+                return Response(
+                    {'error': f'Section {section_id} does not exist or is inactive.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         updated = Document.objects.filter(pk__in=ids).update(**update_data)
         return Response({'updated': updated})
 
-    # ---- Sprint 2: Feature #8 — Similarity Search ----
-
     @action(detail=True, methods=['get'], url_path='similar')
     def similar_documents(self, request, pk=None):
-        """
-        GET /api/edms/documents/{id}/similar/
-        Optional query params:
-          ?limit=10          max results (default 10, max 25)
-          ?threshold=0.08    similarity score floor (0.0 - 1.0)
-        """
         doc = self.get_object()
-
         try:
             limit = min(int(request.query_params.get('limit', 10)), 25)
         except (TypeError, ValueError):
             limit = 10
-
         try:
             threshold = float(request.query_params.get('threshold',
                                 DocumentRepository.SIMILARITY_THRESHOLD))
             threshold = max(0.01, min(threshold, 0.99))
         except (TypeError, ValueError):
             threshold = DocumentRepository.SIMILARITY_THRESHOLD
-
         results = DocumentRepository.get_similar_documents(
-            document_id=doc.pk,
-            limit=limit,
-            threshold=threshold,
+            document_id=doc.pk, limit=limit, threshold=threshold,
         )
         return Response({
             'source_id':    doc.pk,
@@ -311,7 +296,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     filter_backends    = [DjangoFilterBackend]
 
     def get_queryset(self):
-        qs = CustomFieldDefinition.objects.select_related('document_type')
+        qs       = CustomFieldDefinition.objects.select_related('document_type')
         doc_type = self.request.query_params.get('document_type')
         if doc_type:
             qs = qs.filter(document_type_id=doc_type)
@@ -356,19 +341,19 @@ class DocumentCorrespondentLinkViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
-class DocumentNoteViewSet(viewsets.GenericViewSet,
-                          viewsets.mixins.ListModelMixin,
-                          viewsets.mixins.CreateModelMixin,
-                          viewsets.mixins.RetrieveModelMixin):
+class DocumentNoteViewSet(
+    viewsets.GenericViewSet,
+    viewsets.mixins.ListModelMixin,
+    viewsets.mixins.CreateModelMixin,
+    viewsets.mixins.RetrieveModelMixin,
+):
     serializer_class   = DocumentNoteSerializer
     permission_classes = [permissions.IsAuthenticated, IsEngineerOrAbove]
     filter_backends    = [DjangoFilterBackend, filters.OrderingFilter]
     ordering           = ['-created_at']
 
     def get_queryset(self):
-        qs  = DocumentNote.objects.select_related(
-            'created_by', 'resolved_by', 'document', 'revision'
-        )
+        qs  = DocumentNote.objects.select_related('created_by', 'resolved_by', 'document', 'revision')
         doc = self.request.query_params.get('document')
         rev = self.request.query_params.get('revision')
         if doc:

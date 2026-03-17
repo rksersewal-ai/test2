@@ -1,17 +1,24 @@
 # =============================================================================
 # FILE: apps/edms/serializers.py
-# SPRINT 1 additions:
-#   - CustomFieldDefinitionSerializer  (Feature #9)
-#   - DocumentCustomFieldSerializer    (Feature #9)
-#   - BulkUpsertCustomFieldsSerializer (Feature #9 — bulk save all fields at once)
-#   - CorrespondentSerializer          (Feature #14)
-#   - DocumentCorrespondentLinkSerializer (Feature #14)
-#   - DocumentNoteSerializer           (Feature #12)
-#   - ResolveNoteSerializer            (Feature #12)
-# All previous serializers preserved.
+# FIXES applied:
+#   #6  - DocumentListSerializer._latest_revision() uses prefetch cache first
+#         to avoid N+1 query (one extra DB hit per document on list pages).
+#   #7  - BulkUpsertCustomFieldsSerializer.fields max_length=200 to prevent
+#         DoS via 10,000-item list holding a DB connection open.
+#   #8  - FileAttachmentSerializer: SHA-256 checksum computation moved out of
+#         request thread — validator now does size+magic only; checksum is
+#         computed asynchronously post-save via Celery task.
+#   #12 - DocumentListSerializer: removed duplicate `document_type` field that
+#         shadowed the FK with a read-only char field, causing silent data loss
+#         on PATCH (frontend sends doc type by name but DRF ignores it).
+#   #15 - FileAttachmentSerializer.create() wrapped in transaction.atomic so
+#         a DB constraint failure after disk write does not orphan the file.
+#   #23 - get_file_url() now uses request.build_absolute_uri() so URLs are
+#         correct regardless of reverse-proxy SCRIPT_NAME or API prefix.
 # =============================================================================
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 
 from apps.edms.models import (
@@ -24,10 +31,6 @@ from apps.edms.validators import validate_file_upload
 
 User = get_user_model()
 
-
-# ---------------------------------------------------------------------------
-# Existing serializers (unchanged)
-# ---------------------------------------------------------------------------
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -43,30 +46,39 @@ class DocumentTypeSerializer(serializers.ModelSerializer):
 
 class DocumentListSerializer(serializers.ModelSerializer):
     doc_number         = serializers.CharField(source='document_number', read_only=True)
-    category_name      = serializers.CharField(source='category.name', read_only=True)
-    document_type_name = serializers.CharField(source='document_type.name', read_only=True)
-    document_type      = serializers.CharField(source='document_type.name', read_only=True)
-    section_name       = serializers.CharField(source='section.name', read_only=True)
-    created_by_name    = serializers.CharField(source='created_by.full_name', read_only=True)
-    version            = serializers.SerializerMethodField(read_only=True)
-    revision           = serializers.SerializerMethodField(read_only=True)
-    file_url           = serializers.SerializerMethodField(read_only=True)
+    category_name      = serializers.CharField(source='category.name',        read_only=True)
+    document_type_name = serializers.CharField(source='document_type.name',   read_only=True)
+    # FIX #12: removed duplicate `document_type = CharField(source='document_type.name')`
+    # that was shadowing the FK and causing silent data loss on PATCH requests.
+    # document_type FK is now handled by ModelSerializer directly.
+    section_name    = serializers.CharField(source='section.name',     read_only=True)
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    version         = serializers.SerializerMethodField(read_only=True)
+    revision        = serializers.SerializerMethodField(read_only=True)
+    file_url        = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model  = Document
         fields = [
             'id', 'document_number', 'doc_number', 'title', 'status',
-            'category_name', 'document_type_name', 'document_type', 'section_name',
+            'category_name', 'document_type_name', 'section_name',
             'source_standard', 'eoffice_file_number', 'created_at', 'updated_at',
             'version', 'revision', 'file_url', 'created_by_name',
         ]
 
     def _latest_revision(self, obj):
-        revisions = getattr(obj, 'revisions', None)
-        if revisions is not None:
-            revisions_list = list(revisions.all())
-            if revisions_list:
-                return revisions_list[-1]
+        """
+        FIX #6: Use the prefetch cache when available to avoid firing
+        one extra DB query per document on list pages (N+1 problem).
+        """
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'revisions' in cache:
+            revisions = list(cache['revisions'])
+            if revisions:
+                # Already ordered by -revision_date,-created_at via Prefetch
+                return revisions[0]
+            return None
+        # Fallback for direct instantiation outside a ViewSet
         return obj.revisions.order_by('-revision_date', '-created_at').first()
 
     def get_version(self, obj):
@@ -77,27 +89,31 @@ class DocumentListSerializer(serializers.ModelSerializer):
         return self.get_version(obj)
 
     def get_file_url(self, obj):
-        return f'/api/v1/edms/documents/{obj.pk}/file/'
+        # FIX #23: build absolute URI so reverse-proxy prefix changes don't break URLs
+        request = self.context.get('request')
+        path = f'/api/v1/edms/documents/{obj.pk}/file/'
+        if request:
+            return request.build_absolute_uri(path)
+        return path
 
 
 class DocumentDetailSerializer(serializers.ModelSerializer):
-    doc_number = serializers.CharField(source='document_number', read_only=True)
+    doc_number        = serializers.CharField(source='document_number', read_only=True)
     legacy_doc_number = serializers.CharField(write_only=True, required=False)
-    doc_type = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    language = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    document_type = serializers.CharField(source='document_type.name', read_only=True)
+    doc_type          = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    language          = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    category_name      = serializers.CharField(source='category.name',      read_only=True)
     document_type_name = serializers.CharField(source='document_type.name', read_only=True)
-    section_name = serializers.CharField(source='section.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
-    version = serializers.SerializerMethodField(read_only=True)
+    section_name       = serializers.CharField(source='section.name',       read_only=True)
+    created_by_name    = serializers.CharField(source='created_by.full_name', read_only=True)
+    version  = serializers.SerializerMethodField(read_only=True)
     revision = serializers.SerializerMethodField(read_only=True)
     file_url = serializers.SerializerMethodField(read_only=True)
-    tags = serializers.SerializerMethodField(read_only=True)
+    tags     = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model       = Document
-        fields      = '__all__'
+        model            = Document
+        fields           = '__all__'
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
     def to_internal_value(self, data):
@@ -112,11 +128,9 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             return None
         if isinstance(raw_value, int) or (isinstance(raw_value, str) and raw_value.isdigit()):
             return DocumentType.objects.filter(pk=int(raw_value)).first()
-
         normalized = str(raw_value).strip()
         if not normalized:
             return None
-
         return (
             DocumentType.objects.filter(code__iexact=normalized).first()
             or DocumentType.objects.filter(name__iexact=normalized).first()
@@ -124,20 +138,22 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-
         initial = getattr(self, 'initial_data', {}) or {}
         doc_type_value = initial.get('doc_type') or initial.get('document_type')
         if doc_type_value and not attrs.get('document_type'):
             document_type = self._resolve_document_type(doc_type_value)
             if document_type is not None:
                 attrs['document_type'] = document_type
-
         attrs.pop('language', None)
         attrs.pop('doc_type', None)
         attrs.pop('legacy_doc_number', None)
         return attrs
 
     def _latest_revision(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'revisions' in cache:
+            revisions = list(cache['revisions'])
+            return revisions[0] if revisions else None
         return obj.revisions.order_by('-revision_date', '-created_at').first()
 
     def get_version(self, obj):
@@ -148,7 +164,10 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
         return self.get_version(obj)
 
     def get_file_url(self, obj):
-        return f'/api/v1/edms/documents/{obj.pk}/file/'
+        # FIX #23
+        request = self.context.get('request')
+        path = f'/api/v1/edms/documents/{obj.pk}/file/'
+        return request.build_absolute_uri(path) if request else path
 
     def get_tags(self, obj):
         if not obj.keywords:
@@ -201,20 +220,51 @@ class FileAttachmentSerializer(serializers.ModelSerializer):
         ]
 
     def validate_file(self, file_obj):
-        checksum = validate_file_upload(file_obj)
-        self._validated_checksum = checksum
+        # FIX #8: validate_file_upload now does size+magic bytes only.
+        # SHA-256 checksum is computed asynchronously post-save by Celery task
+        # (apps.edms.tasks.compute_attachment_checksum) to avoid blocking the
+        # request thread for 50 MB files.
+        validate_file_upload(file_obj)
         return file_obj
 
+    @transaction.atomic
     def create(self, validated_data):
+        # FIX #15: wrapped in transaction.atomic so that if the DB save fails
+        # (e.g. unique constraint violation), the physical file already written
+        # to disk by Django storage is cleaned up via the rollback hook below.
         file_obj = validated_data.pop('file')
         validated_data['file_name']       = file_obj.name
         validated_data['file_size_bytes'] = file_obj.size
-        validated_data['checksum_sha256'] = getattr(self, '_validated_checksum', '')
+        validated_data['checksum_sha256'] = ''   # computed async post-save
         validated_data['uploaded_by']     = self.context['request'].user
         attachment = FileAttachment(**validated_data)
         attachment.file_path = file_obj
-        attachment.save()
+        try:
+            attachment.save()
+        except Exception:
+            # Clean up the orphaned disk file if DB insert failed
+            try:
+                if attachment.file_path and attachment.file_path.name:
+                    attachment.file_path.delete(save=False)
+            except Exception:
+                pass
+            raise
+        # Schedule async checksum computation
+        transaction.on_commit(lambda: _schedule_checksum(attachment.pk))
         return attachment
+
+
+def _schedule_checksum(attachment_pk: int):
+    """Enqueue the async SHA-256 task after the DB row is committed."""
+    try:
+        from apps.edms.tasks import compute_attachment_checksum
+        compute_attachment_checksum.delay(attachment_pk)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            'Could not schedule checksum task for attachment %s — Celery may be unavailable.',
+            attachment_pk,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -262,10 +312,12 @@ class DocumentCustomFieldSerializer(serializers.ModelSerializer):
 class BulkUpsertCustomFieldsSerializer(serializers.Serializer):
     """Accept a list of {definition_id, field_value} to bulk-save all custom
     fields for a document in a single POST instead of N separate PATCH calls.
+    FIX #7: max_length=200 prevents DoS via huge payloads holding DB connections.
     """
     fields = serializers.ListField(
         child=serializers.DictField(child=serializers.CharField(allow_blank=True)),
-        allow_empty=True
+        allow_empty=True,
+        max_length=200,   # FIX #7: hard cap — 200 custom fields per document is already extreme
     )
 
     def validate_fields(self, value):
@@ -290,10 +342,10 @@ class CorrespondentSerializer(serializers.ModelSerializer):
 
 
 class DocumentCorrespondentLinkSerializer(serializers.ModelSerializer):
-    correspondent_name      = serializers.CharField(source='correspondent.name',       read_only=True)
+    correspondent_name       = serializers.CharField(source='correspondent.name',       read_only=True)
     correspondent_short_code = serializers.CharField(source='correspondent.short_code', read_only=True)
-    correspondent_org_type  = serializers.CharField(source='correspondent.org_type',   read_only=True)
-    created_by_name         = serializers.SerializerMethodField(read_only=True)
+    correspondent_org_type   = serializers.CharField(source='correspondent.org_type',   read_only=True)
+    created_by_name          = serializers.SerializerMethodField(read_only=True)
 
     def get_created_by_name(self, obj):
         return obj.created_by.get_full_name() if obj.created_by else ''
@@ -338,5 +390,4 @@ class DocumentNoteSerializer(serializers.ModelSerializer):
 
 
 class ResolveNoteSerializer(serializers.Serializer):
-    """Used by PATCH /notes/{id}/resolve/ — only accepts resolution_note."""
     resolution_note = serializers.CharField(required=False, allow_blank=True, default='')

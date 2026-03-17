@@ -1,12 +1,17 @@
 # =============================================================================
 # FILE: apps/edms/validators.py
-# FIX (#2): File upload validation — size limit, MIME whitelist, magic bytes.
+# FIX #8: SHA-256 checksum computation removed from synchronous validator.
+#   Previously the full file was read twice (magic check + sha256) inside the
+#   request thread, blocking the worker for up to 3-4 seconds on 50 MB files.
+#   Now validate_file_upload() only performs:
+#     1. File size check
+#     2. MIME type check (Content-Type header)
+#     3. Magic bytes check (cannot be spoofed)
+#   Checksum is scheduled as an async Celery task in FileAttachmentSerializer.
 # =============================================================================
-import hashlib
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
-# Allowed MIME types (Content-Type header)
 ALLOWED_MIME_TYPES = {
     'application/pdf',
     'image/jpeg',
@@ -15,7 +20,6 @@ ALLOWED_MIME_TYPES = {
     'image/bmp',
 }
 
-# Magic byte signatures: {mime_type: list_of_valid_prefixes}
 MAGIC_BYTES: dict[str, list[bytes]] = {
     'application/pdf': [b'%PDF'],
     'image/jpeg':      [b'\xff\xd8\xff'],
@@ -24,13 +28,12 @@ MAGIC_BYTES: dict[str, list[bytes]] = {
     'image/bmp':       [b'BM'],
 }
 
-# Default max upload size in MB (override in settings.py)
 MAX_UPLOAD_MB: int = getattr(settings, 'MAX_UPLOAD_MB', 50)
 
 
-def validate_file_upload(file_obj) -> str:
-    """Validate an uploaded InMemoryUploadedFile or TemporaryUploadedFile.
-    Returns the hex SHA-256 checksum of the file content.
+def validate_file_upload(file_obj) -> None:
+    """Validate an uploaded file: size, MIME type, and magic bytes.
+    Returns None. SHA-256 checksum is computed async after upload.
     Raises ValidationError on any failure.
     """
     # 1. Size check
@@ -41,7 +44,7 @@ def validate_file_upload(file_obj) -> str:
             f'(uploaded: {file_obj.size / 1024 / 1024:.1f} MB).'
         )
 
-    # 2. MIME type check (Content-Type header — first line of defence)
+    # 2. MIME type check
     content_type = getattr(file_obj, 'content_type', '').split(';')[0].strip().lower()
     if content_type not in ALLOWED_MIME_TYPES:
         raise ValidationError(
@@ -49,24 +52,14 @@ def validate_file_upload(file_obj) -> str:
             f'Allowed types: {sorted(ALLOWED_MIME_TYPES)}.'
         )
 
-    # 3. Magic bytes check (actual file content — cannot be spoofed by Content-Type)
+    # 3. Magic bytes check
     file_obj.seek(0)
     header = file_obj.read(8)
     file_obj.seek(0)
-
     valid_signatures = MAGIC_BYTES.get(content_type, [])
     if valid_signatures:
         if not any(header.startswith(sig) for sig in valid_signatures):
             raise ValidationError(
                 f'File content does not match declared type "{content_type}". '
-                f'The file may be corrupted or misnamed.'
+                 'The file may be corrupted or misnamed.'
             )
-
-    # 4. Compute SHA-256 checksum for deduplication and integrity
-    sha256 = hashlib.sha256()
-    file_obj.seek(0)
-    for chunk in file_obj.chunks():
-        sha256.update(chunk)
-    file_obj.seek(0)
-
-    return sha256.hexdigest()

@@ -1,10 +1,13 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# BUG FIX #11: SIMPLE_JWT was missing USER_ID_FIELD and USER_ID_CLAIM.
-#   These keys exist in security.py but security.py was never imported,
-#   so token identity was silently relying on SimpleJWT defaults
-#   ('id' and 'user_id') which happen to be correct — but were undocumented
-#   and could drift if SimpleJWT changes its defaults. Now explicit.
+# FIXES applied:
+#   #4  - Celery broker connection timeout options added so Redis downtime
+#         does not hang request threads indefinitely.
+#   #20 - CONN_MAX_AGE lowered from 60s to 0 for Waitress (sync server).
+#         Keeps 60s only if using async/ASGI (set CONN_MAX_AGE=60 in env).
+#   #25 - Duplicate AUTH_PASSWORD_VALIDATORS removed from security.py note;
+#         defined authoritatively here only.
+# (FIX #11/#13 for SIMPLE_JWT and throttle already applied in previous commit)
 # =============================================================================
 import os
 import sys
@@ -12,7 +15,7 @@ from pathlib import Path
 from decouple import config
 from datetime import timedelta
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR    = Path(__file__).resolve().parent.parent.parent
 BACKEND_DIR = BASE_DIR / 'backend'
 
 if str(BACKEND_DIR) not in sys.path:
@@ -27,14 +30,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third party
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
     'django_celery_beat',
-    # Internal apps (apps/ package)
     'apps.core',
     'apps.edms',
     'apps.workflow',
@@ -56,7 +57,6 @@ INSTALLED_APPS = [
     'apps.rbac',
     'apps.work_ledger',
     'apps.sdr',
-    # Backend standalone apps
     'config_mgmt',
     'prototype',
     'bom',
@@ -105,12 +105,16 @@ DATABASES = {
         'HOST':     config('DB_HOST',     default='localhost'),
         'PORT':     config('DB_PORT',     default='5432'),
         'OPTIONS':  {'options': '-c search_path=public'},
-        'CONN_MAX_AGE': 60,
+        # FIX #20: CONN_MAX_AGE=0 for sync (Waitress) server prevents connection
+        # pool exhaustion. Override via env var if using async/pgBouncer.
+        'CONN_MAX_AGE': int(config('DB_CONN_MAX_AGE', default='0')),
     }
 }
 
 AUTH_USER_MODEL = 'core.User'
 
+# FIX #25: AUTH_PASSWORD_VALIDATORS defined once here only.
+# Removed duplicate definition from security.py.
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
@@ -151,16 +155,12 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
-    # BUG FIX #13 (carried over): throttle rates now live HERE in REST_FRAMEWORK
-    # (security.py had them under the wrong key REST_FRAMEWORK_THROTTLE — ignored by DRF)
     'DEFAULT_THROTTLE_RATES': {
         'anon': '60/minute',
         'user': '600/minute',
     },
 }
 
-# BUG FIX #11: Added USER_ID_FIELD and USER_ID_CLAIM — were missing,
-# relying silently on SimpleJWT defaults. Now explicit and version-stable.
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':    timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME':   timedelta(days=1),
@@ -169,7 +169,6 @@ SIMPLE_JWT = {
     'ALGORITHM':                'HS256',
     'AUTH_HEADER_TYPES':        ('Bearer',),
     'UPDATE_LAST_LOGIN':        True,
-    # BUG FIX #11: explicit identity claim fields (were absent — silent default risk)
     'USER_ID_FIELD':            'id',
     'USER_ID_CLAIM':            'user_id',
 }
@@ -177,14 +176,17 @@ SIMPLE_JWT = {
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 ALLOWED_UPLOAD_EXTENSIONS   = ['.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png']
+OCR_MAX_FILE_MB             = int(config('OCR_MAX_FILE_MB', default='100'))
 
-OCR_TESSERACT_CMD  = config('TESSERACT_CMD', default=r'C:\Program Files\Tesseract-OCR\tesseract.exe')
-OCR_DEFAULT_LANG   = 'eng'
-OCR_DPI            = 300
-OCR_WATCH_FOLDER   = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
-OCR_MAX_RETRIES    = 3
+OCR_TESSERACT_CMD = config('TESSERACT_CMD',
+                            default=r'C:\Program Files\Tesseract-OCR\tesseract.exe')
+OCR_DEFAULT_LANG  = 'eng'
+OCR_DPI           = 300
+OCR_WATCH_FOLDER  = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
+OCR_MAX_RETRIES   = 3
 
-ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
+ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES',
+                            default='192.168.0.0/16,10.0.0.0/8').split(',')
 
 CELERY_BROKER_URL        = config('CELERY_BROKER_URL',     default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND    = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
@@ -193,3 +195,16 @@ CELERY_TASK_SERIALIZER   = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE          = 'Asia/Kolkata'
 CELERY_BEAT_SCHEDULER    = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# FIX #4: Celery broker connection timeout — prevents Redis downtime from
+# hanging request threads. Tasks silently fail fast instead of blocking 30s.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'max_retries':    3,
+    'interval_start': 0,
+    'interval_step':  0.2,
+    'interval_max':   0.5,
+    'socket_timeout': 5,
+    'socket_connect_timeout': 3,
+}
+CELERY_TASK_ALWAYS_EAGER         = False
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
