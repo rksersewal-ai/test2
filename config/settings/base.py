@@ -1,10 +1,10 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# BUG FIX: Added missing INSTALLED_APPS entries:
-#   - 'config_mgmt'       → LocoConfig + ECN register (backend/config_mgmt)
-#   - 'prototype'         → Prototype Inspection + Punch Items (backend/prototype)
-#   - 'django_celery_beat'→ Referenced in CELERY_BEAT_SCHEDULER but was absent,
-#                           causing ImportError on Celery beat startup
+# BUG FIX #11: SIMPLE_JWT was missing USER_ID_FIELD and USER_ID_CLAIM.
+#   These keys exist in security.py but security.py was never imported,
+#   so token identity was silently relying on SimpleJWT defaults
+#   ('id' and 'user_id') which happen to be correct — but were undocumented
+#   and could drift if SimpleJWT changes its defaults. Now explicit.
 # =============================================================================
 import os
 import sys
@@ -33,7 +33,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    'django_celery_beat',    # BUG FIX: was referenced in CELERY_BEAT_SCHEDULER but missing here
+    'django_celery_beat',
     # Internal apps (apps/ package)
     'apps.core',
     'apps.edms',
@@ -42,8 +42,8 @@ INSTALLED_APPS = [
     'apps.audit',
     'apps.dashboard',
     'apps.dsign',
-    'apps.metadata',         # RESTORED Feature
-    'apps.versioning',       # RESTORED Feature
+    'apps.metadata',
+    'apps.versioning',
     'apps.lifecycle',
     'apps.notifications',
     'apps.ml_classifier',
@@ -56,10 +56,10 @@ INSTALLED_APPS = [
     'apps.rbac',
     'apps.work_ledger',
     'apps.sdr',
-    # Backend standalone apps (backend/ package, sit on sys.path via manage.py)
-    'config_mgmt',           # BUG FIX: LocoConfig + ECN — was missing, migrations would fail
-    'prototype',             # BUG FIX: Prototype Inspection — was missing, migrations would fail
-    'bom',                   # RESTORED Feature
+    # Backend standalone apps
+    'config_mgmt',
+    'prototype',
+    'bom',
 ]
 
 MIDDLEWARE = [
@@ -98,13 +98,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE':   'django.db.backends.postgresql',
         'NAME':     config('DB_NAME',     default='edms_ldo'),
         'USER':     config('DB_USER',     default='edms_user'),
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST':     config('DB_HOST',     default='localhost'),
         'PORT':     config('DB_PORT',     default='5432'),
-        'OPTIONS': {'options': '-c search_path=public'},
+        'OPTIONS':  {'options': '-c search_path=public'},
         'CONN_MAX_AGE': 60,
     }
 }
@@ -147,18 +147,31 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 25,
-    'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.UserRateThrottle'],
-    'DEFAULT_THROTTLE_RATES': {'user': '500/hour'},
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    # BUG FIX #13 (carried over): throttle rates now live HERE in REST_FRAMEWORK
+    # (security.py had them under the wrong key REST_FRAMEWORK_THROTTLE — ignored by DRF)
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/minute',
+        'user': '600/minute',
+    },
 }
 
+# BUG FIX #11: Added USER_ID_FIELD and USER_ID_CLAIM — were missing,
+# relying silently on SimpleJWT defaults. Now explicit and version-stable.
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS':  True,
+    'ACCESS_TOKEN_LIFETIME':    timedelta(hours=8),
+    'REFRESH_TOKEN_LIFETIME':   timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS':    True,
     'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM':         'HS256',
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'UPDATE_LAST_LOGIN':  True,
+    'ALGORITHM':                'HS256',
+    'AUTH_HEADER_TYPES':        ('Bearer',),
+    'UPDATE_LAST_LOGIN':        True,
+    # BUG FIX #11: explicit identity claim fields (were absent — silent default risk)
+    'USER_ID_FIELD':            'id',
+    'USER_ID_CLAIM':            'user_id',
 }
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
@@ -171,9 +184,9 @@ OCR_DPI            = 300
 OCR_WATCH_FOLDER   = config('OCR_WATCH_FOLDER', default=str(BASE_DIR / 'ocr_inbox'))
 OCR_MAX_RETRIES    = 3
 
-ALLOWED_IP_RANGES  = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
+ALLOWED_IP_RANGES = config('ALLOWED_IP_RANGES', default='192.168.0.0/16,10.0.0.0/8').split(',')
 
-CELERY_BROKER_URL        = config('CELERY_BROKER_URL',    default='redis://localhost:6379/0')
+CELERY_BROKER_URL        = config('CELERY_BROKER_URL',     default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND    = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT    = ['json']
 CELERY_TASK_SERIALIZER   = 'json'

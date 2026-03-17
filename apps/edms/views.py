@@ -1,9 +1,14 @@
 # =============================================================================
 # FILE: apps/edms/views.py
-# SPRINT 2 addition:
-#   - DocumentViewSet.similar_documents()  GET  (Feature #8)
-# All Sprint 1 additions and existing ViewSets preserved exactly.
+# BUG FIX #14: download() and file() actions called attachment.file_path.open('rb')
+#   directly without checking if the physical file exists on disk.
+#   If the file was deleted/moved after upload (migration, backup restore,
+#   manual cleanup), the endpoint crashed with an unhandled ValueError /
+#   FileNotFoundError → HTTP 500 instead of a clean HTTP 404.
+#   Fixed: added _safe_open_attachment() helper that checks path existence
+#   and raises Http404 with a clear message if the file is gone.
 # =============================================================================
+import os
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
@@ -72,6 +77,26 @@ class DocumentViewSet(viewsets.ModelViewSet):
             raise Http404('No file attached to this document.')
         return attachment
 
+    @staticmethod
+    def _safe_open_attachment(attachment: FileAttachment):
+        """
+        BUG FIX #14: Guard against missing physical files.
+        Raises Http404 with a descriptive message instead of crashing
+        with ValueError / FileNotFoundError → HTTP 500.
+        """
+        if not attachment.file_path:
+            raise Http404('File record exists but no path is stored.')
+        try:
+            physical_path = attachment.file_path.path
+        except (ValueError, AttributeError):
+            raise Http404('File path is invalid.')
+        if not os.path.exists(physical_path):
+            raise Http404(
+                f'Physical file not found on server: {attachment.file_name}. '
+                 'The file may have been deleted or moved after upload.'
+            )
+        return attachment.file_path.open('rb')
+
     # ---- Existing actions ----
 
     @action(detail=False, methods=['get'], url_path='search')
@@ -125,16 +150,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='download')
     def download(self, request, pk=None):
-        doc = self.get_object()
+        doc        = self.get_object()
         attachment = self._latest_attachment(doc)
-        response = FileResponse(attachment.file_path.open('rb'), as_attachment=True, filename=attachment.file_name)
-        return response
+        # BUG FIX #14: use _safe_open_attachment to avoid 500 on missing file
+        file_obj   = self._safe_open_attachment(attachment)
+        return FileResponse(file_obj, as_attachment=True, filename=attachment.file_name)
 
     @action(detail=True, methods=['get'], url_path='file')
     def file(self, request, pk=None):
-        doc = self.get_object()
+        doc        = self.get_object()
         attachment = self._latest_attachment(doc)
-        return FileResponse(attachment.file_path.open('rb'), filename=attachment.file_name)
+        # BUG FIX #14: use _safe_open_attachment to avoid 500 on missing file
+        file_obj   = self._safe_open_attachment(attachment)
+        return FileResponse(file_obj, filename=attachment.file_name)
 
     @action(detail=True, methods=['get'], url_path='related')
     def related(self, request, pk=None):
@@ -150,12 +178,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
         )
         payload = [
             {
-                'id': related.pk,
-                'doc_number': related.document_number,
-                'title': related.title,
-                'doc_type': related.document_type.name if related.document_type else '',
-                'status': related.status,
-                'relation_type': 'LINKED',
+                'id':           related.pk,
+                'doc_number':   related.document_number,
+                'title':        related.title,
+                'doc_type':     related.document_type.name if related.document_type else '',
+                'status':       related.status,
+                'relation_type':'LINKED',
             }
             for related in related_qs
         ]
@@ -193,7 +221,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 results.append(obj)
         return Response(DocumentCustomFieldSerializer(results, many=True).data)
 
-    # ---- Sprint 1: Feature #6 placeholder — Bulk Update ----
+    # ---- Sprint 1: Feature #6 — Bulk Update ----
 
     @action(detail=False, methods=['post'], url_path='bulk-update',
             permission_classes=[permissions.IsAuthenticated, IsAdminOrSectionHead])
@@ -219,9 +247,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
         GET /api/edms/documents/{id}/similar/
         Optional query params:
           ?limit=10          max results (default 10, max 25)
-          ?threshold=0.08    similarity score floor (0.0 – 1.0)
+          ?threshold=0.08    similarity score floor (0.0 - 1.0)
         """
-        doc = self.get_object()  # ensures 404 + permission check
+        doc = self.get_object()
 
         try:
             limit = min(int(request.query_params.get('limit', 10)), 25)
@@ -241,10 +269,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
             threshold=threshold,
         )
         return Response({
-            'source_id':   doc.pk,
+            'source_id':    doc.pk,
             'source_title': doc.title,
-            'count':       len(results),
-            'results':     results,
+            'count':        len(results),
+            'results':      results,
         })
 
 
@@ -277,10 +305,6 @@ class DocumentTypeViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-# ---------------------------------------------------------------------------
-# Sprint 1 — Feature #9: Custom Field Definition admin ViewSet
-# ---------------------------------------------------------------------------
-
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     serializer_class   = CustomFieldDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated, CanManageDropdowns]
@@ -293,10 +317,6 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(document_type_id=doc_type)
         return qs.order_by('document_type', 'sort_order')
 
-
-# ---------------------------------------------------------------------------
-# Sprint 1 — Feature #14: Correspondent ViewSets
-# ---------------------------------------------------------------------------
 
 class CorrespondentViewSet(viewsets.ModelViewSet):
     serializer_class   = CorrespondentSerializer
@@ -335,10 +355,6 @@ class DocumentCorrespondentLinkViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
-
-# ---------------------------------------------------------------------------
-# Sprint 1 — Feature #12: Document Notes ViewSet
-# ---------------------------------------------------------------------------
 
 class DocumentNoteViewSet(viewsets.GenericViewSet,
                           viewsets.mixins.ListModelMixin,
