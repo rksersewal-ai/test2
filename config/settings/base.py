@@ -1,13 +1,9 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# FIXES applied:
-#   #4  - Celery broker connection timeout options added so Redis downtime
-#         does not hang request threads indefinitely.
-#   #20 - CONN_MAX_AGE lowered from 60s to 0 for Waitress (sync server).
-#         Keeps 60s only if using async/ASGI (set CONN_MAX_AGE=60 in env).
-#   #25 - Duplicate AUTH_PASSWORD_VALIDATORS removed from security.py note;
-#         defined authoritatively here only.
-# (FIX #11/#13 for SIMPLE_JWT and throttle already applied in previous commit)
+# FIX #19b (addendum): Added ocr_submit and ocr_retry throttle scopes to
+#   REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] so OCRSubmitThrottle /
+#   OCRRetryThrottle resolve their rates correctly.
+# All other settings from previous commit preserved.
 # =============================================================================
 import os
 import sys
@@ -105,16 +101,12 @@ DATABASES = {
         'HOST':     config('DB_HOST',     default='localhost'),
         'PORT':     config('DB_PORT',     default='5432'),
         'OPTIONS':  {'options': '-c search_path=public'},
-        # FIX #20: CONN_MAX_AGE=0 for sync (Waitress) server prevents connection
-        # pool exhaustion. Override via env var if using async/pgBouncer.
         'CONN_MAX_AGE': int(config('DB_CONN_MAX_AGE', default='0')),
     }
 }
 
 AUTH_USER_MODEL = 'core.User'
 
-# FIX #25: AUTH_PASSWORD_VALIDATORS defined once here only.
-# Removed duplicate definition from security.py.
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
@@ -156,8 +148,11 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '60/minute',
-        'user': '600/minute',
+        'anon':       '60/minute',
+        'user':       '600/minute',
+        # FIX #19b: OCR-specific throttle scopes
+        'ocr_submit': config('OCR_SUBMIT_THROTTLE_RATE', default='20/hour'),
+        'ocr_retry':  config('OCR_RETRY_THROTTLE_RATE',  default='10/hour'),
     },
 }
 
@@ -196,15 +191,13 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE          = 'Asia/Kolkata'
 CELERY_BEAT_SCHEDULER    = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-# FIX #4: Celery broker connection timeout — prevents Redis downtime from
-# hanging request threads. Tasks silently fail fast instead of blocking 30s.
 CELERY_BROKER_TRANSPORT_OPTIONS = {
-    'max_retries':    3,
-    'interval_start': 0,
-    'interval_step':  0.2,
-    'interval_max':   0.5,
-    'socket_timeout': 5,
+    'max_retries':            3,
+    'interval_start':         0,
+    'interval_step':          0.2,
+    'interval_max':           0.5,
+    'socket_timeout':         5,
     'socket_connect_timeout': 3,
 }
-CELERY_TASK_ALWAYS_EAGER         = False
+CELERY_TASK_ALWAYS_EAGER                  = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
