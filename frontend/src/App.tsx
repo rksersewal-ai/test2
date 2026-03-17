@@ -19,6 +19,9 @@ import PrototypeInspectionPage from './pages/PrototypeInspectionPage';
 import SettingsPage            from './pages/SettingsPage';
 import PLMasterPage            from './pages/PLMaster/PLMasterPage';
 import PLDetailPage            from './pages/PLMaster/PLDetailPage';
+import PLItemEditorPage        from './pages/PLMaster/PLItemEditorPage';
+import PLDrawingEditorPage     from './pages/PLMaster/PLDrawingEditorPage';
+import PLSpecEditorPage        from './pages/PLMaster/PLSpecEditorPage';
 import WorkLedgerPage          from './pages/WorkLedger/WorkLedgerPage';
 import WorkLedgerEntryPage     from './pages/work-ledger/WorkLedgerEntryPage';
 import MonthlyKpiReportPage    from './pages/work-ledger/MonthlyKpiReportPage';
@@ -65,10 +68,14 @@ export default function App() {
         <Route path="bom"                  element={<BOMPage />} />
         <Route path="config"               element={<ConfigManagementPage />} />
         <Route path="prototype-inspection" element={<PrototypeInspectionPage />} />
-        {/* PL Master list + detail (with Tech Eval Docs) */}
         <Route path="pl-master"                    element={<PLMasterPage />} />
-        <Route path="pl-master/*"                  element={<PLMasterPage />} />
-        <Route path="pl-master/:plNumber"           element={<PLDetailPage />} />
+        <Route path="pl-master/new"                element={<PLItemEditorPage />} />
+        <Route path="pl-master/:plNumber/edit"     element={<PLItemEditorPage />} />
+        <Route path="pl-master/drawings/new"       element={<PLDrawingEditorPage />} />
+        <Route path="pl-master/drawings/:drawingNumber/edit" element={<PLDrawingEditorPage />} />
+        <Route path="pl-master/specs/new"          element={<PLSpecEditorPage />} />
+        <Route path="pl-master/specs/:specNumber/edit" element={<PLSpecEditorPage />} />
+        <Route path="pl-master/:plNumber"          element={<PLDetailPage />} />
         <Route path="master-data"                  element={<MasterDataPage />} />
 
         {/* Work Ledger */}
