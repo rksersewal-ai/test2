@@ -6,6 +6,7 @@
 # =============================================================================
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from django.http import FileResponse, Http404
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
@@ -31,6 +32,7 @@ from apps.edms.filters import DocumentFilter, RevisionFilter, FileAttachmentFilt
 from apps.edms.repository import DocumentRepository, RevisionRepository
 from apps.edms.services import DocumentService, RevisionService
 from apps.core.permissions import IsEngineerOrAbove, IsAdminOrSectionHead, CanManageDropdowns
+from apps.core.permissions import get_user_role, ROLE_ADMIN, ROLE_SECTION_HEAD
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -91,6 +93,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if new_status not in Document.Status.values:
             return Response({'error': f'Invalid status. Choices: {Document.Status.values}'},
                             status=status.HTTP_400_BAD_REQUEST)
+        if new_status == Document.Status.OBSOLETE and get_user_role(request) not in {ROLE_ADMIN, ROLE_SECTION_HEAD}:
+            return Response({'error': 'Only admin or section head can mark documents obsolete.'},
+                            status=status.HTTP_403_FORBIDDEN)
         DocumentService.update_status(doc, new_status, request.user)
         return Response({'status': new_status})
 

@@ -25,6 +25,12 @@ const RELATION_LABELS: Record<string, string> = {
   SUPERSEDED_BY: 'Sup. by', LINKED: 'Linked',
 };
 
+function formatEntityReference(entity: OCREntity): string {
+  const rawId = String(entity.id ?? entity.page_number ?? entity.value ?? '0');
+  const digits = rawId.replace(/\D/g, '').slice(-6).padStart(6, '0');
+  return `#PG-${digits}`;
+}
+
 export function RightPanel({
   metadata, revisions, relatedDocs, ocrEntities,
   isLoadingMeta, onEntityClick, onOpenRelated,
@@ -228,7 +234,7 @@ export function RightPanel({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <span className={styles.refType} style={{ background: '#3b82f6' }}>{entity.entity_type}</span>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>ID: #PG-{Math.floor(Math.random() * 900000 + 100000)}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>ID: {formatEntityReference(entity)}</span>
                   </div>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#f8fafc', marginBottom: '4px' }}>{entity.value}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -17,7 +17,7 @@ const EMPTY_FORM: WorkLedgerFormData = {
   section: 'Mechanical',
   engineer_id: null,
   officer_id: null,
-  status: 'Open',
+  status: 'DRAFT',
   pl_number: '',
   drawing_number: '',
   drawing_revision: '',
@@ -66,8 +66,6 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
     if (!form.section)             errs.section             = 'Section is required.';
     if (!form.work_category_code)  errs.work_category_code  = 'Select a work category.';
     if (!form.description.trim())  errs.description         = 'Description is required.';
-    if (form.status === 'Closed' && !form.closed_date)
-      errs.closed_date = 'Closed date required when status is Closed.';
     if (form.closed_date && form.received_date && form.closed_date < form.received_date)
       errs.closed_date = 'Closed date cannot be before received date.';
     setErrors(errs);

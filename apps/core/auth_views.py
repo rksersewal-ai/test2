@@ -47,7 +47,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
         body = {
             key: response.data[key]
-            for key in ('full_name', 'username', 'email', 'is_staff', 'role', 'section')
+            for key in ('access', 'refresh', 'full_name', 'username', 'email', 'is_staff', 'role', 'section')
         }
         result = Response(body, status=status.HTTP_200_OK)
         result.set_cookie(

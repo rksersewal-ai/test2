@@ -93,6 +93,40 @@ class TestDocumentStatusChange:
         r = auth_client_engineer.post(url, {'status': 'OBSOLETE'}, format='json')
         assert r.status_code in (403, 400)
 
+    def test_approve_moves_document_to_active(self, auth_client_engineer):
+        doc = DocumentFactory.create(status='DRAFT')
+        url = f'/api/v1/edms/documents/{doc.pk}/approve/'
+        r = auth_client_engineer.post(url, {}, format='json')
+        assert r.status_code == 200
+        doc.refresh_from_db()
+        assert doc.status == 'ACTIVE'
+
+    def test_reject_moves_document_to_draft(self, auth_client_engineer):
+        doc = DocumentFactory.create(status='ACTIVE')
+        url = f'/api/v1/edms/documents/{doc.pk}/reject/'
+        r = auth_client_engineer.post(url, {}, format='json')
+        assert r.status_code == 200
+        doc.refresh_from_db()
+        assert doc.status == 'DRAFT'
+
+    def test_versions_returns_revisions(self, auth_client_engineer):
+        doc = DocumentFactory.create()
+        RevisionFactory.create(document=doc, revision_number='R01')
+        RevisionFactory.create(document=doc, revision_number='R02')
+        url = f'/api/v1/edms/documents/{doc.pk}/versions/'
+        r = auth_client_engineer.get(url)
+        assert r.status_code == 200
+        assert r.data['count'] == 2
+        assert {item['revision_number'] for item in r.data['results']} == {'R01', 'R02'}
+
+    def test_related_returns_documents_with_shared_type(self, auth_client_engineer):
+        source = DocumentFactory.create()
+        related = DocumentFactory.create(document_type=source.document_type)
+        url = f'/api/v1/edms/documents/{source.pk}/related/'
+        r = auth_client_engineer.get(url)
+        assert r.status_code == 200
+        assert any(item['id'] == related.pk for item in r.data)
+
 
 @pytest.mark.django_db
 class TestRevision:

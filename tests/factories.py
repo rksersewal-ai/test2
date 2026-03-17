@@ -28,6 +28,7 @@ class SectionFactory(DjangoModelFactory):
 class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
+        skip_postgeneration_save = True
 
     username   = factory.Sequence(lambda n: f'user{n}')
     full_name  = factory.LazyAttribute(lambda o: f'User {o.username.title()}')
@@ -35,7 +36,12 @@ class UserFactory(DjangoModelFactory):
     role       = User.Role.ENGINEER
     section    = factory.SubFactory(SectionFactory)
     is_active  = True
-    password   = factory.PostGenerationMethodCall('set_password', 'Test@12345')
+
+    @factory.post_generation
+    def password(obj, create, extracted, **kwargs):
+        obj.set_password(extracted or 'Test@12345')
+        if create:
+            obj.save(update_fields=['password'])
 
 
 class AdminUserFactory(UserFactory):
@@ -72,6 +78,12 @@ class DocumentFactory(DjangoModelFactory):
     status          = Document.Status.ACTIVE
     section         = factory.SubFactory(SectionFactory)
     created_by      = factory.SubFactory(UserFactory)
+
+    @classmethod
+    def _adjust_kwargs(cls, **kwargs):
+        if 'doc_number' in kwargs:
+            kwargs['document_number'] = kwargs.pop('doc_number')
+        return super()._adjust_kwargs(**kwargs)
 
 
 class RevisionFactory(DjangoModelFactory):
@@ -122,6 +134,7 @@ class OCRQueueFactory(DjangoModelFactory):
     class Meta:
         model = OCRQueue
 
+    file_attachment = factory.SubFactory(FileAttachmentFactory)
     status   = 'PENDING'
     priority = 5
 

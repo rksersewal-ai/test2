@@ -17,16 +17,24 @@ class WorkLedgerService:
     def log_create(entry: WorkLedgerEntry, user) -> None:
         from apps.audit.services import AuditService
         AuditService.log(
-            user=user, action='CREATE', model='WorkLedgerEntry',
-            object_id=entry.pk, detail=f'Created: {entry.subject or entry.eoffice_subject}'
+            user=user,
+            module='WORKFLOW',
+            action='CREATE',
+            entity_type='WorkLedgerEntry',
+            entity_id=entry.pk,
+            description=f'Created: {entry.subject or entry.eoffice_subject}',
         )
 
     @staticmethod
     def log_update(entry: WorkLedgerEntry, user) -> None:
         from apps.audit.services import AuditService
         AuditService.log(
-            user=user, action='UPDATE', model='WorkLedgerEntry',
-            object_id=entry.pk, detail=f'Updated status to {entry.status}'
+            user=user,
+            module='WORKFLOW',
+            action='UPDATE',
+            entity_type='WorkLedgerEntry',
+            entity_id=entry.pk,
+            description=f'Updated status to {entry.status}',
         )
 
 
@@ -251,9 +259,12 @@ class ApprovalService:
         try:
             from apps.audit.services import AuditService
             AuditService.log(
-                user=user, action=action,
-                model='ApprovalRequest', object_id=request.pk,
-                detail=detail,
+                user=user,
+                module='WORKFLOW',
+                action=action,
+                entity_type='ApprovalRequest',
+                entity_id=request.pk,
+                description=detail,
             )
         except Exception:
             pass

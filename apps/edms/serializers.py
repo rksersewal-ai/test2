@@ -42,6 +42,7 @@ class DocumentTypeSerializer(serializers.ModelSerializer):
 
 
 class DocumentListSerializer(serializers.ModelSerializer):
+    doc_number         = serializers.CharField(source='document_number', read_only=True)
     category_name      = serializers.CharField(source='category.name', read_only=True)
     document_type_name = serializers.CharField(source='document_type.name', read_only=True)
     document_type      = serializers.CharField(source='document_type.name', read_only=True)
@@ -54,7 +55,7 @@ class DocumentListSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Document
         fields = [
-            'id', 'document_number', 'title', 'status',
+            'id', 'document_number', 'doc_number', 'title', 'status',
             'category_name', 'document_type_name', 'document_type', 'section_name',
             'source_standard', 'eoffice_file_number', 'created_at', 'updated_at',
             'version', 'revision', 'file_url', 'created_by_name',
@@ -80,6 +81,10 @@ class DocumentListSerializer(serializers.ModelSerializer):
 
 
 class DocumentDetailSerializer(serializers.ModelSerializer):
+    doc_number = serializers.CharField(source='document_number', read_only=True)
+    legacy_doc_number = serializers.CharField(write_only=True, required=False)
+    doc_type = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    language = serializers.CharField(write_only=True, required=False, allow_blank=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     document_type = serializers.CharField(source='document_type.name', read_only=True)
     document_type_name = serializers.CharField(source='document_type.name', read_only=True)
@@ -94,6 +99,43 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
         model       = Document
         fields      = '__all__'
         read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    def to_internal_value(self, data):
+        normalized = data.copy() if hasattr(data, 'copy') else dict(data)
+        doc_number = normalized.get('doc_number') or normalized.get('legacy_doc_number')
+        if doc_number and not normalized.get('document_number'):
+            normalized['document_number'] = doc_number
+        return super().to_internal_value(normalized)
+
+    def _resolve_document_type(self, raw_value):
+        if raw_value in (None, ''):
+            return None
+        if isinstance(raw_value, int) or (isinstance(raw_value, str) and raw_value.isdigit()):
+            return DocumentType.objects.filter(pk=int(raw_value)).first()
+
+        normalized = str(raw_value).strip()
+        if not normalized:
+            return None
+
+        return (
+            DocumentType.objects.filter(code__iexact=normalized).first()
+            or DocumentType.objects.filter(name__iexact=normalized).first()
+        )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        initial = getattr(self, 'initial_data', {}) or {}
+        doc_type_value = initial.get('doc_type') or initial.get('document_type')
+        if doc_type_value and not attrs.get('document_type'):
+            document_type = self._resolve_document_type(doc_type_value)
+            if document_type is not None:
+                attrs['document_type'] = document_type
+
+        attrs.pop('language', None)
+        attrs.pop('doc_type', None)
+        attrs.pop('legacy_doc_number', None)
+        return attrs
 
     def _latest_revision(self, obj):
         return obj.revisions.order_by('-revision_date', '-created_at').first()

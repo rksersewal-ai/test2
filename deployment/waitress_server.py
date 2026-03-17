@@ -1,4 +1,4 @@
-"""Windows production WSGI server using Waitress.
+r"""Windows production WSGI server using Waitress.
 
 Usage (from project root):
     python deployment/waitress_server.py
@@ -16,6 +16,8 @@ import logging
 # Add project root to path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.production')
 
@@ -23,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join(BASE_DIR, 'logs', 'waitress.log')),
+        logging.FileHandler(os.path.join(LOG_DIR, 'waitress.log')),
         logging.StreamHandler(sys.stdout),
     ],
 )

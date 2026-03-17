@@ -7,11 +7,16 @@
 #                           causing ImportError on Celery beat startup
 # =============================================================================
 import os
+import sys
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BACKEND_DIR = BASE_DIR / 'backend'
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(1, str(BACKEND_DIR))
 
 SECRET_KEY = config('SECRET_KEY', default='change-me-in-production')
 
@@ -36,8 +41,10 @@ INSTALLED_APPS = [
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
+    'apps.dsign',
     'apps.metadata',         # RESTORED Feature
     'apps.versioning',       # RESTORED Feature
+    'apps.lifecycle',
     'apps.notifications',
     'apps.ml_classifier',
     'apps.pdf_tools',
@@ -46,6 +53,7 @@ INSTALLED_APPS = [
     'apps.webhooks',
     'apps.scanner',
     'apps.pl_master',
+    'apps.rbac',
     'apps.work_ledger',
     'apps.sdr',
     # Backend standalone apps (backend/ package, sit on sys.path via manage.py)

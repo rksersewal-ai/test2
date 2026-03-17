@@ -13,7 +13,7 @@ const EMPTY_FORM: WorkLedgerFormData = {
   section: 'Mechanical',
   engineer_id: null,
   officer_id: null,
-  status: 'Open',
+  status: 'DRAFT',
   pl_number: '',
   drawing_number: '',
   drawing_revision: '',
@@ -53,8 +53,6 @@ export const WorkLedgerForm: React.FC<Props> = ({ initialData, onSubmit, submitL
     if (!form.received_date) errs.received_date = 'Received date is required.';
     if (!form.work_category_code) errs.work_category_code = 'Select a work category.';
     if (!form.description.trim()) errs.description = 'Description is required.';
-    if (form.status === 'Closed' && !form.closed_date)
-      errs.closed_date = 'Closed date required when status is Closed.';
     if (form.closed_date && form.received_date && form.closed_date < form.received_date)
       errs.closed_date = 'Closed date cannot be before received date.';
     setErrors(errs);
@@ -105,9 +103,11 @@ export const WorkLedgerForm: React.FC<Props> = ({ initialData, onSubmit, submitL
         <div className="wl-field">
           <label>Work Status *</label>
           <select value={form.status} onChange={(e) => setField('status', e.target.value as any)}>
-            <option value="Open">Open</option>
-            <option value="Closed">Closed</option>
-            <option value="Pending">Pending</option>
+            <option value="DRAFT">Draft</option>
+            <option value="SUBMITTED">Submitted</option>
+            <option value="VERIFIED">Verified</option>
+            <option value="APPROVED">Approved</option>
+            <option value="RETURNED">Returned</option>
           </select>
         </div>
       </fieldset>

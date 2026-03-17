@@ -122,7 +122,7 @@ class VersioningService:
         if reason:
             VersionAnnotation.objects.create(
                 version=rollback_version,
-                text=f'Rolled back from v{target_version_number}: {reason}',
+                text=f'Rollback from v{target_version_number}: {reason}',
                 created_by=user,
             )
         return rollback_version

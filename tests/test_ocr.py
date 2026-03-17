@@ -1,6 +1,7 @@
 """OCR queue and entity parser tests — PRD Section 19."""
 import pytest
 from apps.ocr.pipeline.entity_parser import parse_entities
+from apps.ocr.models import OCRQueue
 from tests.factories import OCRQueueFactory, OCRResultFactory, FileAttachmentFactory
 
 
@@ -61,3 +62,24 @@ class TestOCRQueue:
         OCRQueueFactory.create_batch(2)
         r = auth_client_engineer.get('/api/v1/ocr/queue/')
         assert r.status_code == 200
+
+    def test_engineer_can_cancel_pending_item(self, auth_client_engineer):
+        item = OCRQueueFactory.create(status=OCRQueue.Status.PENDING)
+        r = auth_client_engineer.post(f'/api/v1/ocr/queue/{item.pk}/cancel/')
+        assert r.status_code == 200
+        item.refresh_from_db()
+        assert item.status == OCRQueue.Status.CANCELLED
+
+    def test_engineer_can_retry_cancelled_item(self, auth_client_engineer):
+        item = OCRQueueFactory.create(status=OCRQueue.Status.CANCELLED)
+        r = auth_client_engineer.post(f'/api/v1/ocr/queue/{item.pk}/retry/')
+        assert r.status_code == 200
+        item.refresh_from_db()
+        assert item.status == OCRQueue.Status.RETRY
+
+    def test_by_file_result_returns_extracted_text(self, auth_client_engineer):
+        result = OCRResultFactory.create(full_text='Extracted OCR text')
+        file_id = result.queue_item.file_attachment_id
+        r = auth_client_engineer.get(f'/api/v1/ocr/queue/by-file/{file_id}/result/')
+        assert r.status_code == 200
+        assert r.data['full_text'] == 'Extracted OCR text'

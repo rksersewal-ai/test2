@@ -35,6 +35,13 @@ def _display_name(user) -> str:
     )
 
 
+def _display_section(user) -> str:
+    section = getattr(user, 'section', None)
+    if section is None:
+        return ''
+    return getattr(section, 'name', '') or str(section)
+
+
 def _fill(color: str):
     return PatternFill(fill_type='solid', fgColor=color)
 
@@ -79,7 +86,7 @@ def generate_monthly_work_report_excel(user, year: int, month: int) -> bytes:
     month_label = f'{MONTH_NAMES[month]} {year}'
     full_name = _display_name(user)
     designation = getattr(user, 'designation', '') or ''
-    section = getattr(user, 'section', '') or ''
+    section = _display_section(user)
     employee_id = getattr(user, 'employee_id', '') or ''
 
     workbook = openpyxl.Workbook()

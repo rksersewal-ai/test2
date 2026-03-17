@@ -1,5 +1,6 @@
-"""Add PostgreSQL trigger that blocks UPDATE and DELETE on audit_log."""
+"""Add an audit-log immutability trigger on PostgreSQL only."""
 from django.db import migrations
+
 
 SQL_CREATE = """
 CREATE OR REPLACE FUNCTION audit_log_immutable()
@@ -20,8 +21,20 @@ DROP FUNCTION IF EXISTS audit_log_immutable();
 """
 
 
+def create_trigger(apps, schema_editor):
+    if schema_editor.connection.vendor != 'postgresql':
+        return
+    schema_editor.execute(SQL_CREATE)
+
+
+def drop_trigger(apps, schema_editor):
+    if schema_editor.connection.vendor != 'postgresql':
+        return
+    schema_editor.execute(SQL_DROP)
+
+
 class Migration(migrations.Migration):
     dependencies = [('audit', '0001_initial')]
-    operations  = [
-        migrations.RunSQL(sql=SQL_CREATE, reverse_sql=SQL_DROP),
+    operations = [
+        migrations.RunPython(create_trigger, reverse_code=drop_trigger),
     ]

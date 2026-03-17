@@ -19,7 +19,6 @@
 #   PLLocoApplicability    — per-loco-type applicability record
 # =============================================================================
 from django.conf import settings
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -102,8 +101,8 @@ class PLMaster(models.Model):
 
     # --- Functional ---
     functionality           = models.TextField(blank=True)
-    used_in                 = ArrayField(
-        models.CharField(max_length=20), default=list, blank=True,
+    used_in                 = models.JSONField(
+        default=list, blank=True,
         help_text='Loco types: WAG9, WAP7, WAP5, MEMU, DEMU ...'
     )
     application_area        = models.CharField(max_length=100, blank=True)
@@ -158,12 +157,8 @@ class PLMaster(models.Model):
     case_no                 = models.CharField(max_length=100, blank=True)
 
     # --- Search / Tags ---
-    keywords                = ArrayField(
-        models.CharField(max_length=100), default=list, blank=True
-    )
-    tags                    = ArrayField(
-        models.CharField(max_length=50), default=list, blank=True
-    )
+    keywords                = models.JSONField(default=list, blank=True)
+    tags                    = models.JSONField(default=list, blank=True)
     remarks                 = models.TextField(blank=True)
 
     # --- Lifecycle ---
@@ -472,9 +467,7 @@ class RDSOReference(models.Model):
     current_revision    = models.CharField(max_length=20, blank=True)
     revision_date       = models.DateField(null=True, blank=True)
     effective_date      = models.DateField(null=True, blank=True)
-    linked_pl_numbers   = ArrayField(
-        models.CharField(max_length=50), default=list, blank=True
-    )
+    linked_pl_numbers   = models.JSONField(default=list, blank=True)
     applicability       = models.TextField(blank=True)
     file_path           = models.CharField(max_length=500, blank=True)
     file_hash           = models.CharField(max_length=64, blank=True)
@@ -519,9 +512,7 @@ class AlterationHistory(models.Model):
     source_agency           = models.CharField(max_length=10, blank=True)
     source_reference        = models.CharField(max_length=200, blank=True)
     source_date             = models.DateField(null=True, blank=True)
-    affected_pl_numbers     = ArrayField(
-        models.CharField(max_length=50), default=list, blank=True
-    )
+    affected_pl_numbers     = models.JSONField(default=list, blank=True)
     implementation_status   = models.CharField(
         max_length=20, choices=ImplementationStatus.choices,
         default=ImplementationStatus.PENDING

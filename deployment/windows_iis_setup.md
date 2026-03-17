@@ -1,14 +1,14 @@
 # Windows IIS + wfastcgi Setup Guide for PLW EDMS
 
-## Option A: Recommended — nginx + gunicorn on Windows
+## Option A: Recommended — nginx + Waitress on Windows
 
-Install nginx for Windows and run gunicorn via a Windows Service.
-This avoids IIS Python CGI complexity.
+Install nginx for Windows and run Waitress via a Windows Service.
+This avoids IIS Python CGI complexity and keeps the Python app off the public LAN port.
 
 ### Step 1: Install dependencies
 ```
 pip install -r requirements.txt
-pip install gunicorn  # works on Windows via waitress fallback
+pip install -r requirements-optional.txt -r requirements-lock.txt
 ```
 
 ### Step 2: Use waitress as WSGI server (Windows-native)

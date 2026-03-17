@@ -34,6 +34,13 @@ def _display_name(user) -> str:
     )
 
 
+def _display_section(user) -> str:
+    section = getattr(user, 'section', None)
+    if section is None:
+        return ''
+    return getattr(section, 'name', '') or str(section)
+
+
 def _get_entries(user, year: int, month: int):
     from apps.work_ledger.models import WorkEntry
 
@@ -89,7 +96,7 @@ def generate_monthly_work_report(user, year: int, month: int) -> bytes:
 
     full_name = _display_name(user)
     designation = getattr(user, 'designation', '') or ''
-    section = getattr(user, 'section', '') or ''
+    section = _display_section(user)
     employee_id = getattr(user, 'employee_id', '') or ''
     month_label = f'{MONTH_NAMES[month]} {year}'
 

@@ -23,17 +23,21 @@ notepad .env
 
 Fill `.env` completely before proceeding. Key values:
 - `SECRET_KEY` — generate with: `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
-- `DATABASE_URL` — `postgresql://plw_edms_user:PASSWORD@localhost:5432/plw_edms_db`
-- `DJANGO_ALLOWED_HOSTS` — `192.168.1.100,plw-edms.local`
-- `ALLOWED_LAN_NETWORKS` — `192.168.1.0/24`
-- `DEBUG` — `False`
+- `DJANGO_SETTINGS_MODULE` — `config.settings.production`
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
+- `ALLOWED_HOSTS` — `192.168.1.100,plw-edms.local`
+- `CORS_ALLOWED_ORIGINS` — `https://plw-edms.local`
+- `CSRF_TRUSTED_ORIGINS` — `https://plw-edms.local`
+- `ALLOWED_IP_RANGES` — `192.168.1.0/24`
+- `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` — e.g. `redis://localhost:6379/0`
+- `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`
 
 ## Step 2: Install Dependencies
 
 ```bat
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements-lock.txt
+pip install -r requirements.txt -r requirements-optional.txt -r requirements-lock.txt
 ```
 
 ## Step 3: Setup Database
@@ -50,6 +54,7 @@ GRANT ALL PRIVILEGES ON DATABASE plw_edms_db TO plw_edms_user;
 ```bat
 venv\Scripts\activate
 python manage.py migrate
+python manage.py check --deploy --settings=config.settings.production
 python manage.py loaddata fixtures/work_types.json
 python manage.py createsuperuser
 python manage.py collectstatic --noinput
@@ -106,8 +111,9 @@ pytest tests/ -v --cov=apps --cov-report=term-missing
 ```bat
 git pull origin main
 venv\Scripts\activate
-pip install -r requirements-lock.txt
+pip install -r requirements.txt -r requirements-optional.txt -r requirements-lock.txt
 python manage.py migrate --noinput
+python manage.py check --deploy --settings=config.settings.production
 python manage.py collectstatic --noinput
 REM Restart app server:
 taskkill /F /FI "WINDOWTITLE eq PLW-EDMS-App" /T
