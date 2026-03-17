@@ -12,6 +12,7 @@
 // =============================================================================
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { TokenResponse } from '../api/types';
+import { apiUrl } from '../api/base';
 
 type UserInfo = Omit<TokenResponse, 'access' | 'refresh'>;
 
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // On mount: silently verify the live session against the backend.
   useEffect(() => {
     if (!user) return;
-    fetch('/api/v1/auth/me/', {
+    fetch(apiUrl('/auth/me/'), {
       method: 'GET',
       credentials: 'include',
     }).then(res => {
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string): Promise<void> => {
-    const res = await fetch('/api/v1/auth/token/', {
+    const res = await fetch(apiUrl('/auth/token/'), {
       method: 'POST',
       credentials: 'include',          // receive httpOnly cookies
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
-      await fetch('/api/v1/auth/logout/', {
+      await fetch(apiUrl('/auth/logout/'), {
         method: 'POST',
         credentials: 'include',        // sends cookies so server can clear them
       });

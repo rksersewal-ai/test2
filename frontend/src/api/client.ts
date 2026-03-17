@@ -20,12 +20,13 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
+import { API_BASE_URL, apiUrl } from './base';
 
 // ---------------------------------------------------------------------------
 // Base instance
 // ---------------------------------------------------------------------------
 export const apiClient = axios.create({
-  baseURL        : '/api/v1',
+  baseURL        : API_BASE_URL,
   withCredentials: true,
   headers        : { 'Content-Type': 'application/json' },
   timeout        : 30_000,
@@ -156,7 +157,7 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
       try {
         await axios.post(
-          '/api/v1/auth/token/refresh/',
+          apiUrl('/auth/token/refresh/'),
           {},
           { withCredentials: true, timeout: 10_000 }
         );
