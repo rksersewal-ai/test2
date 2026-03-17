@@ -1,6 +1,27 @@
-"""Core models: User, Section, Role - PLW EDMS + LDO."""
+"""Core models: User, Section, Role - PLW EDMS + LDO.
+
+BUG FIX #9: Section model had is_active flag but no custom manager to filter
+  inactive sections. Section.objects.all() was returning deactivated sections,
+  polluting all dropdowns and FK lookups.
+  Added ActiveSectionManager (default) and Section.all_objects for admin use.
+"""
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+
+
+# ---------------------------------------------------------------------------
+# BUG FIX #9 — custom manager filters out deactivated sections by default
+# ---------------------------------------------------------------------------
+class ActiveSectionManager(models.Manager):
+    """Default manager: returns only active sections. Used everywhere in the app."""
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
+
+
+class AllSectionManager(models.Manager):
+    """Unfiltered manager — use Section.all_objects in admin/migrations only."""
+    def get_queryset(self):
+        return super().get_queryset()
 
 
 class Section(models.Model):
@@ -13,12 +34,21 @@ class Section(models.Model):
     )
     is_active   = models.BooleanField(default=True)
 
+    # BUG FIX #9: default manager only returns active sections
+    objects     = ActiveSectionManager()
+    all_objects = AllSectionManager()   # admin / migrations: Section.all_objects.all()
+
     class Meta:
         db_table = 'core_section'
         ordering = ['code']
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def deactivate(self):
+        """Soft-delete: sets is_active=False and saves."""
+        self.is_active = False
+        self.save(update_fields=['is_active'])
 
 
 class UserManager(BaseUserManager):

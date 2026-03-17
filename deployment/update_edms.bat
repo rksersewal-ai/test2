@@ -3,6 +3,10 @@ REM ============================================================================
 REM FILE: deployment/update_edms.bat
 REM Pull latest code from GitHub and redeploy without reinstalling services.
 REM Run as Administrator whenever you push changes to the repo.
+REM
+REM BUG FIX #10: NGINX_DIR was never defined in this file (it was only set in
+REM   install_services.bat). The nginx reload silently failed on every update.
+REM   Added set NGINX_DIR=C:\nginx at top of script.
 REM =============================================================================
 
 setlocal
@@ -10,6 +14,7 @@ setlocal
 set PROJECT_DIR=D:\plw_edms
 set PYTHON=%PROJECT_DIR%\venv\Scripts\python.exe
 set NSSM=nssm
+set NGINX_DIR=C:\nginx
 
 echo ============================================================
 echo  PLW EDMS - Update Deployment
@@ -51,13 +56,16 @@ echo [6/6] Restarting services...
 %NSSM% start EDMS-Backend
 timeout /t 2 /nobreak >nul
 
-REM Reload nginx config (not restart — zero-downtime)
-"%NGINX_DIR%" 2>nul || set NGINX_DIR=C:\nginx
-"%NGINX_DIR%\nginx.exe" -s reload 2>nul
+REM BUG FIX #10: NGINX_DIR is now defined above — reload always works
+"%NGINX_DIR%\nginx.exe" -s reload
+if errorlevel 1 (
+    echo [WARN] Nginx reload failed — check nginx config syntax:
+    echo        %NGINX_DIR%\nginx.exe -t
+)
 
 echo.
 echo ============================================================
 echo  Update complete! EDMS is running with latest code.
-echo  If login issues persist, check: logs\waitress_stderr.log
+echo  Check logs at: %PROJECT_DIR%\logs\waitress_stderr.log
 echo ============================================================
 pause

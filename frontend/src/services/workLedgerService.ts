@@ -1,11 +1,10 @@
 // =============================================================================
 // FILE: frontend/src/services/workLedgerService.ts
-// ADDED: getMonthlyKpi, getActivityReport, getExportUrl, getCategories
-//   — required by MonthlyKpiReportPage and WorkActivityReportPage but
-//     were missing, causing runtime TypeError on those pages.
-// Base URL corrected: /work-ledger/ (matches config/urls.py after Fix 3)
+// BUG FIX #6: import path changed from '../api/axios' (shim) to '../api/client'
+//   (canonical instance). Also PaginatedResponse import moved to '../api/types'
+//   which is where it is actually defined.
 // =============================================================================
-import api from '../api/axios';
+import api from '../api/client';
 import type { PaginatedResponse } from '../api/types';
 import type {
   WorkLedgerListItem,
@@ -43,10 +42,6 @@ export const workLedgerService = {
     api.post(`${BASE}/entries/${id}/verify/`, { action, remarks }).then(r => r.data),
 
   // ── Categories ─────────────────────────────────────────────────────────────
-  /**
-   * BUG FIX: WorkActivityReportPage called getCategories() — was missing.
-   * GET /work-ledger/categories/
-   */
   listCategories: () =>
     api.get<WorkCategory[]>(`${BASE}/categories/`).then(r => r.data),
 
@@ -54,11 +49,6 @@ export const workLedgerService = {
     api.get<WorkCategory[]>(`${BASE}/categories/`).then(r => r.data),
 
   // ── Reports ────────────────────────────────────────────────────────────────
-  /**
-   * BUG FIX: MonthlyKpiReportPage called getMonthlyKpi(year, month, section)
-   * — method was missing entirely.
-   * GET /work-ledger/report/kpi/?year=&month=&section=
-   */
   getMonthlyKpi: (year: number, month: number, section?: string) => {
     const params: Record<string, string> = {
       year:  String(year),
@@ -68,29 +58,19 @@ export const workLedgerService = {
     return api.get<MonthlyKpiResponse>(`${BASE}/report/kpi/`, { params }).then(r => r.data);
   },
 
-  /**
-   * BUG FIX: WorkActivityReportPage called getActivityReport(filters)
-   * — method was missing entirely.
-   * GET /work-ledger/report/activity/
-   */
   getActivityReport: (filters: ActivityReportFilters) => {
     const params: Record<string, string> = {};
-    if (filters.from_date)   params.from_date    = filters.from_date;
-    if (filters.to_date)     params.to_date      = filters.to_date;
-    if (filters.section)     params.section      = filters.section;
-    if (filters.engineer_id) params.engineer_id  = String(filters.engineer_id);
-    if (filters.officer_id)  params.officer_id   = String(filters.officer_id);
-    if (filters.category)    params.category     = filters.category;
-    if (filters.pl_number)   params.pl_number    = filters.pl_number;
-    if (filters.status)      params.status       = filters.status;
+    if (filters.from_date)   params.from_date   = filters.from_date;
+    if (filters.to_date)     params.to_date     = filters.to_date;
+    if (filters.section)     params.section     = filters.section;
+    if (filters.engineer_id) params.engineer_id = String(filters.engineer_id);
+    if (filters.officer_id)  params.officer_id  = String(filters.officer_id);
+    if (filters.category)    params.category    = filters.category;
+    if (filters.pl_number)   params.pl_number   = filters.pl_number;
+    if (filters.status)      params.status      = filters.status;
     return api.get<ActivityReportRow[]>(`${BASE}/report/activity/`, { params }).then(r => r.data);
   },
 
-  /**
-   * BUG FIX: WorkActivityReportPage called getExportUrl(filters, fmt)
-   * — method was missing. Returns a direct download URL (opened via window.open).
-   * GET /work-ledger/report/export/?format=csv|xlsx|pdf&...
-   */
   getExportUrl: (filters: ActivityReportFilters, fmt: 'csv' | 'xlsx' | 'pdf'): string => {
     const params = new URLSearchParams({ format: fmt });
     if (filters.from_date)   params.set('from_date',   filters.from_date);
@@ -101,7 +81,6 @@ export const workLedgerService = {
     if (filters.category)    params.set('category',    filters.category);
     if (filters.pl_number)   params.set('pl_number',   filters.pl_number);
     if (filters.status)      params.set('status',      filters.status);
-    // Use relative path — will be prefixed by axios baseURL in practice
     return `${BASE}/report/export/?${params.toString()}`;
   },
 
@@ -111,13 +90,13 @@ export const workLedgerService = {
       responseType: 'blob',
     }).then(r => r.data),
 
-  // ── Legacy aliases (keep for backward compat) ──────────────────────────────
-  list:      (p?: Record<string, string>) => workLedgerService.listEntries(p),
-  get:       (id: number)                 => workLedgerService.getEntry(id),
-  create:    (d: Partial<WorkLedgerFormData>) => workLedgerService.createEntry(d),
+  // ── Legacy aliases ──────────────────────────────────────────────────────────
+  list:      (p?: Record<string, string>)              => workLedgerService.listEntries(p),
+  get:       (id: number)                              => workLedgerService.getEntry(id),
+  create:    (d: Partial<WorkLedgerFormData>)          => workLedgerService.createEntry(d),
   update:    (id: number, d: Partial<WorkLedgerFormData>) => workLedgerService.updateEntry(id, d),
-  remove:    (id: number)                 => workLedgerService.deleteEntry(id),
-  dashboard: ()                           => workLedgerService.getMonthlyKpi(new Date().getFullYear(), new Date().getMonth() + 1),
-  report:    (y: number, m: number)       => workLedgerService.getMonthlyKpi(y, m),
-  exportCsv: (f: ActivityReportFilters)   => workLedgerService.getExportUrl(f, 'csv'),
+  remove:    (id: number)                              => workLedgerService.deleteEntry(id),
+  dashboard: ()                                        => workLedgerService.getMonthlyKpi(new Date().getFullYear(), new Date().getMonth() + 1),
+  report:    (y: number, m: number)                    => workLedgerService.getMonthlyKpi(y, m),
+  exportCsv: (f: ActivityReportFilters)                => workLedgerService.getExportUrl(f, 'csv'),
 };
