@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSettings } from '../hooks/useSettings';
+import { useSettings, type AppSettings } from '../hooks/useSettings';
 import styles from './SettingsPanel.module.css';
 
 interface SettingsPanelProps {
@@ -44,7 +44,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               <select
                 className={styles.select}
                 value={settings.fontSize}
-                onChange={e => updateSetting('fontSize', e.target.value)}
+                onChange={e => updateSetting('fontSize', e.target.value as AppSettings['fontSize'])}
               >
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
@@ -126,7 +126,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               <select
                 className={styles.select}
                 value={settings.defaultExportFormat}
-                onChange={e => updateSetting('defaultExportFormat', e.target.value)}
+                onChange={e => updateSetting('defaultExportFormat', e.target.value as AppSettings['defaultExportFormat'])}
               >
                 <option value="pdf">PDF</option>
                 <option value="xlsx">Excel (XLSX)</option>

@@ -33,17 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { return null; }
   });
 
-  // On mount: silently verify cookie is still valid via a lightweight endpoint.
-  // If the cookie expired, clear the stale sessionStorage user and redirect.
+  // On mount: silently verify the live session against the backend.
   useEffect(() => {
     if (!user) return;
-    fetch('/api/v1/auth/token/verify/', {
-      method: 'POST',
+    fetch('/api/v1/auth/me/', {
+      method: 'GET',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
     }).then(res => {
-      if (res.status === 401) {
+      if (!res.ok) {
         sessionStorage.removeItem('auth_user');
         setUser(null);
       }

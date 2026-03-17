@@ -3,8 +3,8 @@
 // PURPOSE: Shared TypeScript types for Work Ledger module
 // =============================================================================
 
-export type WorkSection = 'Mechanical' | 'Electrical' | 'General';
-export type WorkStatus = 'Open' | 'Closed' | 'Pending';
+export type WorkSection = string;
+export type WorkStatus = 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'APPROVED' | 'RETURNED';
 
 export interface WorkCategory {
   code: string;

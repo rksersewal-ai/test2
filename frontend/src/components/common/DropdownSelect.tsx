@@ -6,7 +6,7 @@
 //   <DropdownSelect groupKey="section" value={form.section}
 //     onChange={(code) => setField('section', code)} />
 // =============================================================================
-import React from 'react';
+import type { FC } from 'react';
 import { useDropdown } from '../../hooks/useDropdown';
 
 interface Props {
@@ -20,7 +20,7 @@ interface Props {
   required?: boolean;
 }
 
-export const DropdownSelect: React.FC<Props> = ({
+export const DropdownSelect: FC<Props> = ({
   groupKey, value, onChange, placeholder = '-- Select --',
   disabled, className, id, required,
 }) => {
@@ -46,3 +46,5 @@ export const DropdownSelect: React.FC<Props> = ({
     </select>
   );
 };
+
+export default DropdownSelect;

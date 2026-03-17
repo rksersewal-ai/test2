@@ -1,59 +1,35 @@
 # =============================================================================
-# requirements.txt  — PLW EDMS + LDO (all 8 sprints)
-# FIX #7: Added missing qrcode, requests, bcrypt
-# FIX #8: Added django-celery-beat (needed for DatabaseScheduler)
+# requirements.txt
+# Active runtime dependencies for the root Django project.
+# Optional OCR / NLP packages live in requirements-optional.txt so the base
+# install stays compatible with the current Python 3.14 toolchain.
 # =============================================================================
 
-# Core Framework
-Django==4.2.11
-djangorestframework==3.15.1
-djangorestframework-simplejwt==5.3.1
-django-cors-headers==4.3.1
-django-filter==23.5
+# Core framework
+Django==5.2.12
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+django-filter==25.2
 
 # Database
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 
-# OCR Pipeline
-Pillow==10.2.0
-pytesseract==0.3.10
-pdf2image==1.17.0
-opencv-python-headless==4.9.0.80
-numpy==1.26.4
+# Background jobs
+celery==5.6.2
+redis==7.3.0
+django-celery-beat==2.9.0
 
-# NLP / Entity Extraction
-spacy==3.7.4
-nltk==3.8.1
-scikit-learn>=1.4.2
+# Files / reporting
+Pillow==12.1.1
+openpyxl==3.1.5
+reportlab==4.4.10
+qrcode==8.2
 
-# PDF Processing
-PyMuPDF==1.23.26
-pdfplumber==0.11.0
-
-# Background Tasks (Windows-compatible)
-celery==5.3.6
-redis==5.0.3
-django-celery-beat==2.6.0   # FIX #8: required for CELERY_BEAT_SCHEDULER DatabaseScheduler
-
-# QR code (used by Sprint 8 scanner, future TOTP)
-qrcode==7.4.2               # FIX #7: was missing
-
-# HTTP client for webhook delivery
-requests==2.31.0            # FIX #7: was missing (used in apps/webhooks/tasks.py)
-
-# Password hashing for share-link passwords
-bcrypt==4.1.2               # FIX #7: was missing (used in apps/sharelinks/)
-
-# Utilities
+# Runtime utilities
+requests==2.32.5
+bcrypt==5.0.0
 python-decouple==3.8
-gunicorn==21.2.0
-whitenoise==6.6.0
-django-extensions==3.2.3
-
-# Security
+gunicorn==25.1.0
+whitenoise==6.12.0
 django-ratelimit==4.1.0
-
-# Testing
-pytest==8.1.1
-pytest-django==4.8.0
-factory-boy==3.3.0

@@ -47,3 +47,35 @@ export interface ApiError {
   fieldErrors: Record<string, string[]>;
   raw        : unknown;
 }
+
+export interface TokenResponse {
+  access?: string;
+  refresh?: string;
+  full_name: string;
+  username: string;
+  email: string;
+  is_staff: boolean;
+  role?: string;
+  section?: string;
+}
+
+export interface DashboardStats {
+  total_documents: number;
+  pending_approvals: number;
+  ocr_queue: number;
+  total_users: number;
+}
+
+export interface AuditLog {
+  id: number;
+  timestamp?: string;
+  user_name?: string;
+  user?: string;
+  action: string;
+  model?: string;
+  content_type?: string;
+  object_repr?: string;
+  object_id?: number | string;
+  ip_address?: string;
+  changes?: unknown;
+}

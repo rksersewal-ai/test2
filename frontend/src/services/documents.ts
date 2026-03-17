@@ -4,3 +4,4 @@
 // Now re-exports from documentService.ts to avoid split functionality.
 // =============================================================================
 export * from './documentService';
+export { documentService as documentsService } from './documentService';

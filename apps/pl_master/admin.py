@@ -13,58 +13,6 @@ from .models import (
 
 
 # =============================================================================
-# Inline: AlterationHistory inside DrawingMaster / SpecificationMaster
-# =============================================================================
-class AlterationHistoryInline(admin.TabularInline):
-    """
-    Shows all alteration records for a given Drawing or Specification
-    directly on the parent admin change page.
-    Read-only — records are auto-created by signals; manual edits not allowed.
-    """
-    model          = AlterationHistory
-    extra          = 0
-    can_delete     = False
-    show_change_link = True
-    ordering       = ['-alteration_date']
-
-    # Restrict inline to records matching the parent document_number
-    # (resolved via custom get_queryset below)
-    fields = [
-        'alteration_number', 'previous_alteration',
-        'alteration_date', 'changes_description',
-        'probable_impacts', 'source_agency',
-        'implementation_status', 'implementation_remarks',
-    ]
-    readonly_fields = [
-        'alteration_number', 'previous_alteration',
-        'alteration_date', 'changes_description',
-        'probable_impacts', 'source_agency',
-    ]
-
-    def has_add_permission(self, request, obj=None):
-        return False  # Only created via signal
-
-
-class DrawingAlterationHistoryInline(AlterationHistoryInline):
-    verbose_name        = 'Alteration Record'
-    verbose_name_plural = 'Alteration History'
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Filtered further by get_formset override on parent admin
-        return qs.filter(document_type='DRAWING')
-
-
-class SpecAlterationHistoryInline(AlterationHistoryInline):
-    verbose_name        = 'Amendment Record'
-    verbose_name_plural = 'Amendment / Alteration History'
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.filter(document_type='SPEC')
-
-
-# =============================================================================
 # Controlling Agency
 # =============================================================================
 @admin.register(ControllingAgency)
@@ -153,7 +101,7 @@ class PLMasterAdmin(admin.ModelAdmin):
 
 
 # =============================================================================
-# DrawingMaster  — with AlterationHistory inline
+# DrawingMaster
 # =============================================================================
 @admin.register(DrawingMaster)
 class DrawingMasterAdmin(admin.ModelAdmin):
@@ -170,8 +118,6 @@ class DrawingMasterAdmin(admin.ModelAdmin):
     ]
     date_hierarchy  = 'alteration_date'
     readonly_fields = ['created_at', 'updated_at']
-    inlines         = [DrawingAlterationHistoryInline]
-
     fieldsets = [
         ('Drawing Identity', {'fields': [
             'drawing_number', 'drawing_title', 'drawing_type',
@@ -211,7 +157,7 @@ class DrawingMasterAdmin(admin.ModelAdmin):
 
 
 # =============================================================================
-# SpecificationMaster — with AlterationHistory inline
+# SpecificationMaster
 # =============================================================================
 @admin.register(SpecificationMaster)
 class SpecificationMasterAdmin(admin.ModelAdmin):
@@ -225,8 +171,6 @@ class SpecificationMasterAdmin(admin.ModelAdmin):
     list_filter   = ['spec_type', 'controlling_agency', 'is_latest', 'is_active']
     date_hierarchy  = 'alteration_date'
     readonly_fields = ['created_at', 'updated_at']
-    inlines         = [SpecAlterationHistoryInline]
-
     fieldsets = [
         ('Specification Identity', {'fields': [
             'spec_number', 'spec_title', 'spec_type',

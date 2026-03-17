@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { documentsService, type DocumentFilters } from '../services/documents';
+import { documentService as documentsService, type DocumentFilters } from '../services/documentService';
 
 export const DOCS_KEY = 'documents';
 

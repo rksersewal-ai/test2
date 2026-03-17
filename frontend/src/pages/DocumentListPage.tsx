@@ -13,6 +13,8 @@ const STATUS_CLASS: Record<string,string> = {
   DRAFT:'doc-badge-draft', PENDING_REVIEW:'doc-badge-review',
   APPROVED:'doc-badge-approved', OBSOLETE:'doc-badge-obsolete',
   REJECTED:'doc-badge-rejected',
+  ACTIVE:'doc-badge-approved',
+  SUPERSEDED:'doc-badge-review',
 };
 
 export default function DocumentListPage() {
@@ -81,10 +83,9 @@ export default function DocumentListPage() {
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
           <option value="">All Status</option>
           <option value="DRAFT">Draft</option>
-          <option value="PENDING_REVIEW">Pending Review</option>
-          <option value="APPROVED">Approved</option>
+          <option value="ACTIVE">Active</option>
+          <option value="SUPERSEDED">Superseded</option>
           <option value="OBSOLETE">Obsolete</option>
-          <option value="REJECTED">Rejected</option>
         </select>
         <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
       </div>

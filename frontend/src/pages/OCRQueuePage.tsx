@@ -131,17 +131,22 @@ export default function OCRQueuePage() {
             )}
             {items.map(item => (
               <tr key={item.id}>
+                {(() => {
+                  const statusKey = String(item.status ?? '').toLowerCase();
+                  const confidence = item.confidence_score;
+                  return (
+                    <>
                 <td className="ocr-doc-title" title={item.document_title ?? item.document}>
                   {item.document_title ?? item.document ?? `Doc #${item.document_id}`}
                 </td>
                 <td>
-                  <span className={`ocr-badge ${STATUS_CLASS[item.status] ?? ''}`}>
-                    {STATUS_LABELS[item.status] ?? item.status}
+                  <span className={`ocr-badge ${STATUS_CLASS[statusKey] ?? ''}`}>
+                    {STATUS_LABELS[statusKey] ?? item.status}
                   </span>
                 </td>
                 <td className="ocr-center">
-                  {item.confidence_score != null
-                    ? `${Math.round(item.confidence_score * 100)}%`
+                  {confidence != null
+                    ? `${Math.round(confidence > 1 ? confidence : confidence * 100)}%`
                     : '\u2014'
                   }
                 </td>
@@ -150,17 +155,20 @@ export default function OCRQueuePage() {
                   {item.created_at ? new Date(item.created_at).toLocaleString('en-IN') : '\u2014'}
                 </td>
                 <td className="ocr-actions">
-                  {item.status === 'failed' && (
+                  {statusKey === 'failed' && (
                     <Btn size="sm" variant="secondary" onClick={() => handleRetry(item.id)}>
                       \u21BA Retry
                     </Btn>
                   )}
-                  {(item.status === 'pending' || item.status === 'processing') && (
+                  {(statusKey === 'pending' || statusKey === 'processing' || statusKey === 'retry') && (
                     <Btn size="sm" variant="danger" onClick={() => handleCancel(item.id)}>
                       \u2715 Cancel
                     </Btn>
                   )}
                 </td>
+                    </>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>

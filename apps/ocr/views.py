@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
 from apps.ocr.models import OCRQueue
-from apps.ocr.serializers import OCRQueueSerializer, OCRQueueListSerializer
+from apps.ocr.serializers import OCRQueueSerializer, OCRQueueListSerializer, OCRResultSerializer
 from apps.ocr.filters import OCRQueueFilter
 from apps.core.permissions import IsEngineerOrAbove
 
@@ -17,7 +17,7 @@ class OCRQueueViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['priority', 'queued_at']
 
     def get_queryset(self):
-        return OCRQueue.objects.select_related('file_attachment', 'result')
+        return OCRQueue.objects.select_related('file_attachment', 'file_attachment__revision__document', 'result')
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -37,12 +37,36 @@ class OCRQueueViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'], url_path='retry')
     def retry(self, request, pk=None):
         item = self.get_object()
-        if item.status not in (OCRQueue.Status.FAILED, OCRQueue.Status.MANUAL_REVIEW):
+        if item.status not in (OCRQueue.Status.FAILED, OCRQueue.Status.MANUAL_REVIEW, OCRQueue.Status.CANCELLED):
             return Response(
-                {'error': 'Only FAILED or MANUAL_REVIEW items can be retried.'},
+                {'error': 'Only FAILED, CANCELLED or MANUAL_REVIEW items can be retried.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         item.status = OCRQueue.Status.RETRY
         item.failure_reason = ''
         item.save(update_fields=['status', 'failure_reason'])
         return Response({'status': 'queued_for_retry'})
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        item = self.get_object()
+        if item.status not in (OCRQueue.Status.PENDING, OCRQueue.Status.PROCESSING, OCRQueue.Status.RETRY):
+            return Response(
+                {'error': 'Only queued or processing items can be cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        item.status = OCRQueue.Status.CANCELLED
+        item.failure_reason = 'Cancelled by user.'
+        item.save(update_fields=['status', 'failure_reason'])
+        return Response({'status': 'cancelled'})
+
+    @action(detail=False, methods=['get'], url_path=r'by-file/(?P<file_id>[^/.]+)/result')
+    def by_file_result(self, request, file_id=None):
+        queue_item = (
+            self.get_queryset()
+            .filter(file_attachment_id=file_id, result__isnull=False)
+            .first()
+        )
+        if queue_item is None:
+            return Response({'detail': 'OCR result not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(OCRResultSerializer(queue_item.result).data)

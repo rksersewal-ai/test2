@@ -78,8 +78,35 @@ export default function SpotlightSearchPage() {
 
   const { data, isFetching } = useQuery<SearchResult>({
     queryKey: ['spotlight-search', submitted],
-    queryFn: () =>
-      apiClient.get('/edms/search/', { params: { q: submitted, limit: 20 } }).then(r => r.data),
+    queryFn: async () => {
+      const startedAt = performance.now();
+      const response = await apiClient.get('/edms/documents/search/', {
+        params: { q: submitted, page_size: 20 },
+      });
+      const raw = response.data.results ?? response.data;
+      return {
+        query: submitted,
+        elapsed_ms: Math.round(performance.now() - startedAt),
+        meta_hits: raw.map((item: any) => ({
+          id: item.id,
+          doc_number: item.document_number ?? `DOC-${item.id}`,
+          title: item.title ?? '',
+          doc_type_display: item.document_type ?? item.document_type_name ?? 'OTHER',
+          section_name: item.section_name ?? '',
+          status: item.status ?? 'DRAFT',
+          file_size_display: '\u2014',
+          created_by_name: item.created_by_name ?? '\u2014',
+          updated_at: item.updated_at ?? item.created_at ?? new Date().toISOString(),
+          tags: [],
+          score: 1,
+          match_type: 'EXACT' as const,
+          latest_file_id: null,
+          page_count: 1,
+        })),
+        ocr_hits: [],
+        total_ocr: 0,
+      };
+    },
     enabled: submitted.length >= 2,
     staleTime: 30_000,
   });

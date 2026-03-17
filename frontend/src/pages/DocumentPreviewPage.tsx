@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiClient } from '../api/client';
 import { usePreviewTabs } from '../context/PreviewTabsContext';
 import { useDocumentMetadata, useDocumentOCR, useDocumentRevisions, useRelatedDocuments } from '../hooks/useDocumentPreview';
 import { PreviewTabBar } from '../components/preview/PreviewTabBar';
@@ -17,7 +18,7 @@ const ZOOM_STEPS: ZoomLevel[] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 export default function DocumentPreviewPage() {
   const { tabs, activeTabId, openTab, closeTab, setActiveTab } = usePreviewTabs();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { id } = useParams<{ id?: string }>();
 
   // Viewer state
   const [zoom, setZoom]           = useState<ZoomLevel>(1.0);
@@ -27,6 +28,34 @@ export default function DocumentPreviewPage() {
   const [selectedEntity, setSelectedEntity] = useState<OCREntity | null>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? null;
+
+  useEffect(() => {
+    const documentId = Number(id);
+    if (!documentId || tabs.some(tab => tab.documentId === documentId)) {
+      return;
+    }
+
+    let cancelled = false;
+    apiClient.get(`/edms/documents/${documentId}/`).then(({ data }) => {
+      if (cancelled) return;
+      openTab({
+        id: `doc-${documentId}`,
+        docNumber: data.document_number ?? `DOC-${documentId}`,
+        title: data.title ?? `Document ${documentId}`,
+        fileUrl: `/api/v1/edms/documents/${documentId}/file/`,
+        fileId: 0,
+        documentId,
+        pageCount: 1,
+        mimeType: 'application/pdf',
+      });
+    }).catch(() => {
+      if (!cancelled) navigate('/documents', { replace: true });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, navigate, openTab, tabs]);
 
   // Data hooks — always called, gated by null checks inside
   const { data: metadata, isLoading: metaLoading } =
@@ -84,7 +113,7 @@ export default function DocumentPreviewPage() {
 
   // Compare — navigate to compare view
   const handleCompare = () => {
-    if (activeTab) navigate(`/documents/${activeTab.documentId}/compare`);
+    if (activeTab) navigate(`/documents/${activeTab.documentId}`);
   };
 
   return (

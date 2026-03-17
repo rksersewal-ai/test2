@@ -82,6 +82,11 @@ export const documentService = {
     return data;
   },
 
+  async update(id: number, data: Partial<Document>) {
+    const response = await apiClient.patch<Document>(`/documents/${id}/`, data);
+    return response.data;
+  },
+
   // ---- Delete ----------------------------------------------------------------
   // BUG FIX: was missing — DocumentListPage called documentService.delete(id)
   async delete(id: number) {

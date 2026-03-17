@@ -139,13 +139,21 @@ class PLMasterListSerializer(serializers.ModelSerializer):
     controlling_agency_code = serializers.CharField(
         source='controlling_agency.agency_code', read_only=True, default=''
     )
+    description = serializers.CharField(source='part_description', read_only=True)
+    loco_types = serializers.SerializerMethodField()
+    controlling_agency_name = serializers.CharField(
+        source='controlling_agency.agency_name', read_only=True, default=''
+    )
+
+    def get_loco_types(self, obj):
+        return obj.used_in or []
 
     class Meta:
         model  = PLMaster
         fields = [
-            'pl_number', 'part_description', 'inspection_category',
+            'pl_number', 'part_description', 'description', 'inspection_category',
             'safety_item', 'safety_classification', 'vd_item', 'nvd_item',
-            'controlling_agency_code', 'uvam_id', 'used_in',
+            'controlling_agency_code', 'controlling_agency_name', 'uvam_id', 'used_in', 'loco_types',
             'application_area', 'is_active',
         ]
 
@@ -167,10 +175,18 @@ class PLMasterDetailSerializer(serializers.ModelSerializer):
     smi_links      = PLSMILinkReadSerializer(many=True, read_only=True)
     alternates     = PLAlternateSerializer(many=True, read_only=True)
     loco_applicabilities = PLLocoApplicabilitySerializer(many=True, read_only=True)
+    description = serializers.CharField(source='part_description', read_only=True)
+    loco_types = serializers.SerializerMethodField()
+    controlling_agency_name = serializers.CharField(
+        source='controlling_agency.agency_name', read_only=True, default=''
+    )
 
     class Meta:
         model  = PLMaster
         fields = '__all__'
+
+    def get_loco_types(self, obj):
+        return obj.used_in or []
 
     def get_design_supervisor_name(self, obj):
         return obj.design_supervisor_id.full_name if obj.design_supervisor_id else obj.design_supervisor
@@ -209,11 +225,17 @@ class PLMasterWriteSerializer(serializers.ModelSerializer):
 
 # ── Drawing Master ───────────────────────────────────────────────────────────
 class DrawingMasterListSerializer(serializers.ModelSerializer):
+    drawing_id = serializers.IntegerField(source='id', read_only=True)
+    controlling_agency_name = serializers.CharField(
+        source='controlling_agency.agency_name', read_only=True, default=''
+    )
+
     class Meta:
         model  = DrawingMaster
         fields = [
             'drawing_id', 'drawing_number', 'drawing_title', 'drawing_type',
             'current_alteration', 'alteration_date', 'controlling_agency',
+            'controlling_agency_name',
             'drawing_readable', 'sheet_size', 'is_latest', 'is_active',
         ]
 
@@ -232,11 +254,17 @@ class DrawingMasterWriteSerializer(serializers.ModelSerializer):
 
 # ── Specification Master ─────────────────────────────────────────────────────
 class SpecificationMasterListSerializer(serializers.ModelSerializer):
+    spec_id = serializers.IntegerField(source='id', read_only=True)
+    controlling_agency_name = serializers.CharField(
+        source='controlling_agency.agency_name', read_only=True, default=''
+    )
+
     class Meta:
         model  = SpecificationMaster
         fields = [
             'spec_id', 'spec_number', 'spec_title', 'spec_type',
             'current_alteration', 'alteration_date', 'controlling_agency',
+            'controlling_agency_name',
             'is_latest', 'is_active',
         ]
 
@@ -274,6 +302,8 @@ class STRMasterSerializer(serializers.ModelSerializer):
 
 # ── RDSO Reference ───────────────────────────────────────────────────────────
 class RDSORefListSerializer(serializers.ModelSerializer):
+    rdso_ref_id = serializers.IntegerField(source='id', read_only=True)
+
     class Meta:
         model  = RDSOReference
         fields = [

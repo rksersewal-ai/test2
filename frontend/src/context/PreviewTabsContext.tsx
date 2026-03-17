@@ -27,14 +27,13 @@ export function PreviewTabsProvider({ children }: { children: React.ReactNode })
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
       const next = prev.filter(t => t.id !== id);
+      setActiveTabId(current => {
+        if (current !== id) return current;
+        return next.length > 0 ? next[next.length - 1].id : null;
+      });
       return next;
     });
-    setActiveTabId(prev => {
-      if (prev !== id) return prev;
-      const remaining = tabs.filter(t => t.id !== id);
-      return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
-    });
-  }, [tabs]);
+  }, []);
 
   return (
     <Ctx.Provider value={{ tabs, activeTabId, openTab, closeTab, setActiveTab: setActiveTabId }}>

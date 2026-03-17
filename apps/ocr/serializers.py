@@ -40,11 +40,17 @@ class OCRQueueSerializer(serializers.ModelSerializer):
 
 class OCRQueueListSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(read_only=True)
+    document_title = serializers.CharField(source='file_attachment.revision.document.title', read_only=True)
+    document_id = serializers.IntegerField(source='file_attachment.revision.document_id', read_only=True)
+    confidence_score = serializers.FloatField(source='result.confidence', read_only=True)
+    total_pages = serializers.IntegerField(source='result.page_count', read_only=True)
+    created_at = serializers.DateTimeField(source='queued_at', read_only=True)
 
     class Meta:
         model = OCRQueue
         fields = [
-            'id', 'file_name', 'status', 'priority',
+            'id', 'file_name', 'document_title', 'document_id', 'status', 'priority',
             'attempts', 'max_attempts', 'ocr_engine',
-            'queued_at', 'completed_at', 'processing_time_seconds',
+            'queued_at', 'created_at', 'completed_at', 'processing_time_seconds',
+            'confidence_score', 'total_pages',
         ]

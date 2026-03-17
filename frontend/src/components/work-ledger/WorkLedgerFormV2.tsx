@@ -14,10 +14,10 @@ import { dropdownApi } from '../../services/dropdownApi';
 const EMPTY_FORM: WorkLedgerFormData = {
   received_date: '',
   closed_date: '',
-  section: '',
+  section: 'Mechanical',
   engineer_id: null,
   officer_id: null,
-  status: 'OPEN',
+  status: 'Open',
   pl_number: '',
   drawing_number: '',
   drawing_revision: '',
@@ -66,7 +66,7 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
     if (!form.section)             errs.section             = 'Section is required.';
     if (!form.work_category_code)  errs.work_category_code  = 'Select a work category.';
     if (!form.description.trim())  errs.description         = 'Description is required.';
-    if (form.status === 'CLOSED' && !form.closed_date)
+    if (form.status === 'Closed' && !form.closed_date)
       errs.closed_date = 'Closed date required when status is Closed.';
     if (form.closed_date && form.received_date && form.closed_date < form.received_date)
       errs.closed_date = 'Closed date cannot be before received date.';
@@ -113,7 +113,7 @@ export const WorkLedgerFormV2: React.FC<Props> = ({
             id="f-section"
             className="wl-select"
             value={form.section}
-            onChange={(e) => setField('section', e.target.value)}
+            onChange={(e) => setField('section', e.target.value as WorkLedgerFormData['section'])}
             required
           >
             <option value="">-- Select Section --</option>

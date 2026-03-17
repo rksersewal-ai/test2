@@ -1,245 +1,209 @@
 # =============================================================================
 # FILE: apps/work_ledger/reports.py
-#
-# Monthly Work Report PDF generator.
-# Uses ReportLab (pip install reportlab).
-#
-# OUTPUT FORMAT:
-#   PLW Loco Drawing Office — Monthly Work Report
-#   Staff Name | Month | Year | Section
-#   Table: Sr | Date | Work Type | Subject | Reference | Hours | Status
-#   Summary: Total entries, total hours, breakdown by work type
-#   Supervisor verification block (signature line)
+# Monthly Work Report PDF generator for the active Work Ledger models.
 # =============================================================================
 import io
 from datetime import date
 
 try:
-    from reportlab.lib              import colors
-    from reportlab.lib.pagesizes    import A4, landscape
-    from reportlab.lib.styles       import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units        import cm
-    from reportlab.platypus         import (
-        SimpleDocTemplate, Table, TableStyle, Paragraph,
-        Spacer, HRFlowable,
-    )
-    REPORTLAB_AVAILABLE = True
-except ImportError:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+except ImportError:  # pragma: no cover - optional dependency
     REPORTLAB_AVAILABLE = False
+else:
+    REPORTLAB_AVAILABLE = True
+    PLW_NAVY = colors.HexColor('#003366')
+    PLW_GOLD = colors.HexColor('#CC9900')
+    PLW_LIGHT = colors.HexColor('#EEF2F7')
 
-
-# PLW brand colours
-PLW_NAVY  = colors.HexColor('#003366')
-PLW_GOLD  = colors.HexColor('#CC9900')
-PLW_LIGHT = colors.HexColor('#EEF2F7')
 
 MONTH_NAMES = [
     '', 'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
 
-def generate_monthly_work_report(user, year: int, month: int) -> bytes:
-    """
-    Generate a monthly work report PDF for `user` for the given year/month.
-    Returns PDF bytes.
-    Raises ImportError if reportlab is not installed.
-    """
-    if not REPORTLAB_AVAILABLE:
-        raise ImportError(
-            'ReportLab is required for PDF generation. '
-            'Run: pip install reportlab'
-        )
+def _display_name(user) -> str:
+    return (
+        getattr(user, 'full_name', '')
+        or getattr(user, 'get_full_name', lambda: '')()
+        or str(user)
+    )
 
+
+def _get_entries(user, year: int, month: int):
     from apps.work_ledger.models import WorkEntry
 
-    entries = (
-        WorkEntry.objects
-        .filter(
-            created_by=user,
+    return list(
+        WorkEntry.objects.filter(
+            user=user,
             work_date__year=year,
             work_date__month=month,
         )
         .order_by('work_date', 'created_at')
-        .select_related('category', 'verified_by')
+        .select_related('category')
+        .prefetch_related('verifications')
     )
 
-    buf    = io.BytesIO()
-    doc    = SimpleDocTemplate(
-        buf,
+
+def _entry_effort(entry) -> str:
+    if entry.effort_value is None:
+        return ''
+    return f'{entry.effort_value} {entry.get_effort_unit_display()}'
+
+
+def generate_monthly_work_report(user, year: int, month: int) -> bytes:
+    if not REPORTLAB_AVAILABLE:
+        raise ImportError('ReportLab is required for PDF generation. Run: pip install reportlab')
+
+    entries = _get_entries(user, year, month)
+
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
         pagesize=landscape(A4),
-        leftMargin=1.5*cm, rightMargin=1.5*cm,
-        topMargin=1.5*cm,  bottomMargin=1.5*cm,
+        leftMargin=1.5 * cm,
+        rightMargin=1.5 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=1.5 * cm,
     )
     styles = getSampleStyleSheet()
-    story  = []
-
-    # --- Header ------------------------------------------------------------
     title_style = ParagraphStyle(
         'PLWTitle',
         parent=styles['Heading1'],
-        fontSize=13, textColor=PLW_NAVY, spaceAfter=2,
-        fontName='Helvetica-Bold', alignment=1,
-    )
-    sub_style = ParagraphStyle(
-        'PLWSub',
-        parent=styles['Normal'],
-        fontSize=9, textColor=PLW_NAVY, alignment=1, spaceAfter=6,
+        fontName='Helvetica-Bold',
+        fontSize=13,
+        textColor=PLW_NAVY,
+        alignment=1,
+        spaceAfter=3,
     )
     body_style = ParagraphStyle(
-        'PLWBody', parent=styles['Normal'],
-        fontSize=8.5, leading=12,
+        'PLWBody',
+        parent=styles['Normal'],
+        fontSize=8.5,
+        leading=11,
     )
 
-    story.append(Paragraph('PATIALA LOCOMOTIVE WORKS — LOCO DRAWING OFFICE', title_style))
-    story.append(Paragraph('MONTHLY WORK REPORT', title_style))
-    story.append(HRFlowable(width='100%', thickness=1.5, color=PLW_GOLD, spaceAfter=6))
-
-    # --- Staff details -----------------------------------------------------
-    full_name   = getattr(user, 'get_full_name', lambda: str(user))()
+    full_name = _display_name(user)
     designation = getattr(user, 'designation', '') or ''
-    section     = getattr(user, 'section', '') or ''
+    section = getattr(user, 'section', '') or ''
     employee_id = getattr(user, 'employee_id', '') or ''
-    month_str   = f'{MONTH_NAMES[month]} {year}'
+    month_label = f'{MONTH_NAMES[month]} {year}'
 
-    info_data = [
-        ['Staff Name:', full_name,      'Employee ID:', employee_id],
-        ['Designation:', designation,   'Section:',     section],
-        ['Report Month:', month_str,    'Generated On:', date.today().strftime('%d-%b-%Y')],
-    ]
-    info_table = Table(info_data, colWidths=[3.5*cm, 7*cm, 3.5*cm, 6*cm])
-    info_table.setStyle(TableStyle([
-        ('FONTNAME',  (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE',  (0,0), (-1,-1), 8.5),
-        ('FONTNAME',  (0,0), (0,-1), 'Helvetica-Bold'),
-        ('FONTNAME',  (2,0), (2,-1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0,0), (0,-1), PLW_NAVY),
-        ('TEXTCOLOR', (2,0), (2,-1), PLW_NAVY),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ]))
-    story.append(info_table)
-    story.append(Spacer(1, 0.3*cm))
-    story.append(HRFlowable(width='100%', thickness=0.5, color=PLW_LIGHT, spaceAfter=6))
-
-    # --- Work entries table ------------------------------------------------
-    col_headers = [
-        'Sr', 'Date', 'Work Type', 'Category',
-        'Subject / Description', 'Reference No.',
-        'Hours', 'e-Office\nFile No.', 'Status', 'Verified By'
-    ]
-    col_widths  = [
-        0.8*cm, 2.2*cm, 3*cm, 2.5*cm,
-        8.5*cm, 3*cm,
-        1.3*cm, 3.5*cm, 2*cm, 3*cm
+    story = [
+        Paragraph('PATIALA LOCOMOTIVE WORKS - LOCO DRAWING OFFICE', title_style),
+        Paragraph('MONTHLY WORK REPORT', title_style),
+        HRFlowable(width='100%', thickness=1.5, color=PLW_GOLD, spaceAfter=6),
     ]
 
-    table_data = [col_headers]
-    total_hours = 0
-    work_type_summary = {}
+    info_rows = [
+        ['Staff Name:', full_name, 'Employee ID:', employee_id],
+        ['Designation:', designation, 'Section:', section],
+        ['Report Month:', month_label, 'Generated On:', date.today().strftime('%d-%b-%Y')],
+    ]
+    info_table = Table(info_rows, colWidths=[3.2 * cm, 7.6 * cm, 3.2 * cm, 7.0 * cm])
+    info_table.setStyle(
+        TableStyle(
+            [
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+                ('TEXTCOLOR', (0, 0), (0, -1), PLW_NAVY),
+                ('TEXTCOLOR', (2, 0), (2, -1), PLW_NAVY),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    story.extend([info_table, Spacer(1, 0.3 * cm)])
 
-    for idx, entry in enumerate(entries, start=1):
-        hours = float(entry.hours_spent or 0)
-        total_hours += hours
-        wtype = entry.get_work_type_display()
-        work_type_summary[wtype] = work_type_summary.get(wtype, 0) + hours
+    table_rows = [[
+        'Sr',
+        'Date',
+        'Work Type',
+        'Category',
+        'Description',
+        'Reference',
+        'Effort',
+        'Status',
+    ]]
+    total_effort = 0.0
+    work_type_summary: dict[str, int] = {}
 
-        verified_by_name = ''
-        if entry.verified_by:
-            verified_by_name = getattr(entry.verified_by, 'get_full_name', lambda: '')() or ''
+    for index, entry in enumerate(entries, start=1):
+        effort_value = float(entry.effort_value or 0)
+        total_effort += effort_value
+        work_type_label = entry.get_work_type_display()
+        work_type_summary[work_type_label] = work_type_summary.get(work_type_label, 0) + 1
 
-        subject_para = Paragraph(
-            str(entry.work_description)[:200],
-            ParagraphStyle('cell', fontSize=7.5, leading=10)
+        table_rows.append(
+            [
+                str(index),
+                entry.work_date.strftime('%d-%b-%Y') if entry.work_date else '',
+                work_type_label,
+                entry.category.name if entry.category else '',
+                Paragraph(entry.description[:240], body_style),
+                entry.reference_number or '',
+                _entry_effort(entry),
+                entry.get_status_display(),
+            ]
         )
 
-        table_data.append([
-            str(idx),
-            entry.work_date.strftime('%d-%b-%Y') if entry.work_date else '',
-            wtype,
-            entry.category.category_name if entry.category else '',
-            subject_para,
-            entry.reference_number or '',
-            f'{hours:.1f}',
-            entry.eoffice_file_no or '',
-            entry.get_status_display(),
-            verified_by_name,
-        ])
+    if len(table_rows) == 1:
+        table_rows.append(['', 'No entries found for this period.', '', '', '', '', '', ''])
 
-    if not entries:
-        table_data.append(['', 'No entries found for this period.', '', '', '', '', '', '', '', ''])
+    entries_table = Table(
+        table_rows,
+        colWidths=[0.8 * cm, 2.0 * cm, 4.0 * cm, 3.2 * cm, 10.4 * cm, 3.6 * cm, 3.0 * cm, 2.8 * cm],
+        repeatRows=1,
+    )
+    entries_table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), PLW_NAVY),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, PLW_LIGHT]),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 7.5),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ('ALIGN', (7, 1), (7, -1), 'CENTER'),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+                ('TOPPADDING', (0, 1), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ]
+        )
+    )
+    story.extend([entries_table, Spacer(1, 0.5 * cm)])
 
-    entries_table = Table(table_data, colWidths=col_widths, repeatRows=1)
-    entries_table.setStyle(TableStyle([
-        # Header
-        ('BACKGROUND',    (0,0), (-1,0), PLW_NAVY),
-        ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
-        ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0,0), (-1,0), 8),
-        ('ALIGN',         (0,0), (-1,0), 'CENTER'),
-        ('VALIGN',        (0,0), (-1,0), 'MIDDLE'),
-        ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.white, PLW_LIGHT]),
-        ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE',      (0,1), (-1,-1), 7.5),
-        ('VALIGN',        (0,1), (-1,-1), 'TOP'),
-        ('ALIGN',         (0,1), (0,-1), 'CENTER'),   # Sr
-        ('ALIGN',         (6,1), (6,-1), 'CENTER'),   # Hours
-        ('ALIGN',         (8,1), (8,-1), 'CENTER'),   # Status
-        ('GRID',          (0,0), (-1,-1), 0.4, colors.grey),
-        ('TOPPADDING',    (0,1), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 3),
-    ]))
-    story.append(entries_table)
-    story.append(Spacer(1, 0.5*cm))
+    summary_rows = [['Work Type', 'Entry Count']]
+    for work_type_label, count in sorted(work_type_summary.items(), key=lambda item: (-item[1], item[0])):
+        summary_rows.append([work_type_label, str(count)])
+    summary_rows.append(['TOTAL ENTRIES', str(len(entries))])
+    summary_rows.append(['TOTAL EFFORT', f'{total_effort:.2f}'])
 
-    # --- Summary block -----------------------------------------------------
-    story.append(Paragraph('<b>WORK SUMMARY</b>', ParagraphStyle(
-        'SumHead', parent=styles['Normal'],
-        fontSize=9, textColor=PLW_NAVY, fontName='Helvetica-Bold', spaceAfter=4
-    )))
+    summary_table = Table(summary_rows, colWidths=[9.5 * cm, 3.5 * cm])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), PLW_NAVY),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, -2), (-1, -1), PLW_GOLD),
+                ('FONTNAME', (0, -2), (-1, -1), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    story.append(summary_table)
 
-    summary_rows = [['Work Type', 'Hours Spent', '% of Total']]
-    for wtype, hrs in sorted(work_type_summary.items(), key=lambda x: -x[1]):
-        pct = (hrs / total_hours * 100) if total_hours else 0
-        summary_rows.append([wtype, f'{hrs:.1f}', f'{pct:.1f}%'])
-    summary_rows.append(['TOTAL', f'{total_hours:.1f}', '100%'])
-
-    sum_table = Table(summary_rows, colWidths=[7*cm, 3.5*cm, 3.5*cm])
-    sum_table.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0), (-1,0), PLW_NAVY),
-        ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
-        ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0,0), (-1,-1), 8),
-        ('BACKGROUND',    (0,-1), (-1,-1), PLW_GOLD),
-        ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
-        ('GRID',          (0,0), (-1,-1), 0.4, colors.grey),
-        ('ALIGN',         (1,0), (-1,-1), 'CENTER'),
-        ('TOPPADDING',    (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ]))
-    story.append(sum_table)
-    story.append(Spacer(1, 0.8*cm))
-
-    # --- Signature block ---------------------------------------------------
-    sig_data = [
-        ['Prepared By', 'Verified By (SSE/JE)', 'Approved By (WM/Officer)'],
-        ['\n\n\n\n', '\n\n\n\n', '\n\n\n\n'],
-        [full_name, '________________________', '________________________'],
-        [designation, '', ''],
-        [month_str, 'Date:', 'Date:'],
-    ]
-    sig_table = Table(sig_data, colWidths=[9*cm, 9*cm, 9*cm])
-    sig_table.setStyle(TableStyle([
-        ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0,0), (-1,-1), 8),
-        ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN',     (0,0), (-1,-1), 'BOTTOM'),
-        ('BOX',        (0,0), (0,-1), 0.5, PLW_NAVY),
-        ('BOX',        (1,0), (1,-1), 0.5, PLW_NAVY),
-        ('BOX',        (2,0), (2,-1), 0.5, PLW_NAVY),
-        ('BACKGROUND', (0,0), (-1,0), PLW_LIGHT),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-    ]))
-    story.append(sig_table)
-
-    doc.build(story)
-    return buf.getvalue()
+    document.build(story)
+    return buffer.getvalue()

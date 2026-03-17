@@ -6,6 +6,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { PreviewTabsProvider } from './context/PreviewTabsContext';
 import { TextScaleProvider } from './context/TextScaleContext';
 import { ThemeProvider } from './context/ThemeContext';
 import App from './App';
@@ -18,11 +19,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <TextScaleProvider>
-          <ThemeProvider>
-            <App />
-          </ThemeProvider>
-        </TextScaleProvider>
+        <PreviewTabsProvider>
+          <TextScaleProvider>
+            <ThemeProvider>
+              <App />
+            </ThemeProvider>
+          </TextScaleProvider>
+        </PreviewTabsProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

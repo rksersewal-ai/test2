@@ -5,7 +5,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
 
-CORs_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 # Disable LAN-only restriction in dev
 DISABLE_LAN_RESTRICTION = True

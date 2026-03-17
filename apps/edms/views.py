@@ -6,6 +6,7 @@
 # =============================================================================
 from django.utils import timezone
 from django.db import transaction
+from django.http import FileResponse, Http404
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -52,7 +53,22 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         data = {k: v for k, v in serializer.validated_data.items()}
-        DocumentService.create_document(data, created_by=self.request.user)
+        serializer.instance = DocumentService.create_document(data, created_by=self.request.user)
+
+    def _latest_attachment(self, document):
+        revision = (
+            document.revisions
+            .prefetch_related('files')
+            .order_by('-revision_date', '-created_at')
+            .first()
+        )
+        if revision is None:
+            raise Http404('No revision found for this document.')
+
+        attachment = revision.files.order_by('-is_primary', '-uploaded_at').first()
+        if attachment is None:
+            raise Http404('No file attached to this document.')
+        return attachment
 
     # ---- Existing actions ----
 
@@ -77,6 +93,68 @@ class DocumentViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         DocumentService.update_status(doc, new_status, request.user)
         return Response({'status': new_status})
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        doc = self.get_object()
+        DocumentService.update_status(doc, Document.Status.ACTIVE, request.user)
+        doc.refresh_from_db()
+        return Response(DocumentDetailSerializer(doc, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        doc = self.get_object()
+        DocumentService.update_status(doc, Document.Status.DRAFT, request.user)
+        doc.refresh_from_db()
+        return Response(DocumentDetailSerializer(doc, context={'request': request}).data)
+
+    @action(detail=True, methods=['get'], url_path='versions')
+    def versions(self, request, pk=None):
+        doc = self.get_object()
+        revisions = doc.revisions.order_by('-revision_date', '-created_at')
+        page = self.paginate_queryset(revisions)
+        serializer = RevisionSerializer(page or revisions, many=True, context={'request': request})
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download(self, request, pk=None):
+        doc = self.get_object()
+        attachment = self._latest_attachment(doc)
+        response = FileResponse(attachment.file_path.open('rb'), as_attachment=True, filename=attachment.file_name)
+        return response
+
+    @action(detail=True, methods=['get'], url_path='file')
+    def file(self, request, pk=None):
+        doc = self.get_object()
+        attachment = self._latest_attachment(doc)
+        return FileResponse(attachment.file_path.open('rb'), filename=attachment.file_name)
+
+    @action(detail=True, methods=['get'], url_path='related')
+    def related(self, request, pk=None):
+        doc = self.get_object()
+        related_qs = (
+            Document.objects
+            .select_related('document_type')
+            .filter(
+                Q(category=doc.category) | Q(document_type=doc.document_type)
+            )
+            .exclude(pk=doc.pk)
+            .order_by('document_number')[:10]
+        )
+        payload = [
+            {
+                'id': related.pk,
+                'doc_number': related.document_number,
+                'title': related.title,
+                'doc_type': related.document_type.name if related.document_type else '',
+                'status': related.status,
+                'relation_type': 'LINKED',
+            }
+            for related in related_qs
+        ]
+        return Response(payload)
 
     # ---- Sprint 1: Feature #9 — Custom Fields ----
 
@@ -179,7 +257,7 @@ class RevisionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         document = serializer.validated_data['document']
         data     = {k: v for k, v in serializer.validated_data.items() if k != 'document'}
-        RevisionService.create_revision(document, data, created_by=self.request.user)
+        serializer.instance = RevisionService.create_revision(document, data, created_by=self.request.user)
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):

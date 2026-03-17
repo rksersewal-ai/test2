@@ -104,8 +104,8 @@ export default function DocumentDetailPage() {
     </div>
   );
 
-  const canApprove = doc.status === 'PENDING_REVIEW' || doc.status === 'DRAFT';
-  const canReject  = doc.status === 'PENDING_REVIEW';
+  const canApprove = doc.status === 'DRAFT' || doc.status === 'SUPERSEDED';
+  const canReject  = false;
 
   return (
     <div className="ddetail-page">

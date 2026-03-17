@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ocrService } from '../services/ocr';
-import type { OCRStatus } from '../api/types';
+import { ocrService, type OCRStatus } from '../services/ocr';
 
 export function useOCRQueue(params: { page?: number; status?: OCRStatus }) {
   return useQuery({

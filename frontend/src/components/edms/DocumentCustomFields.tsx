@@ -17,6 +17,7 @@ interface FieldDefinition {
   field_type: 'text' | 'number' | 'date' | 'select' | 'boolean';
   select_options_list: string[];
   is_required: boolean;
+  is_active?: boolean;
   sort_order: number;
 }
 

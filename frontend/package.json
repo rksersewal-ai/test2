@@ -2,6 +2,7 @@
   "name": "edms-ldo-frontend",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,19 +11,19 @@
     "lint": "eslint src --ext ts,tsx"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.28.0",
-    "axios": "^1.6.7",
-    "date-fns": "^3.3.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.3"
+    "@tanstack/react-query": "^5.90.21",
+    "axios": "^1.13.6",
+    "date-fns": "^3.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^8.57.0",
-    "typescript": "^5.3.3",
-    "vite": "^5.1.4"
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
   }
 }

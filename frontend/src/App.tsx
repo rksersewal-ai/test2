@@ -51,6 +51,7 @@ export default function App() {
         <Route path="search" element={<SpotlightSearchPage />} />
 
         {/* Documents */}
+        <Route path="preview"               element={<DocumentPreviewPage />} />
         <Route path="documents"             element={<DocumentListPage />} />
         <Route path="documents/:id"         element={<DocumentDetailPage />} />
         <Route path="documents/:id/preview" element={<DocumentPreviewPage />} />

@@ -1,7 +1,7 @@
 // =============================================================================
 // Reusable Button — use everywhere instead of raw <button>
 // =============================================================================
-import React from 'react';
+import { forwardRef } from 'react';
 import './Btn.css';
 
 export type BtnVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'gold';
@@ -14,7 +14,7 @@ interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?:    React.ReactNode;
 }
 
-export default function Btn({
+const Btn = forwardRef<HTMLButtonElement, BtnProps>(function Btn({
   variant = 'primary',
   size    = 'md',
   loading = false,
@@ -24,14 +24,15 @@ export default function Btn({
   className = '',
   'aria-label': ariaLabel,
   ...rest
-}: BtnProps) {
+}, ref) {
   // Warn if an icon-only button is missing an aria-label (development only)
-  if (process.env.NODE_ENV !== 'production' && icon && !children && !ariaLabel && !rest.title) {
+  if (import.meta.env.DEV && icon && !children && !ariaLabel && !rest.title) {
     console.warn('Btn component: Icon-only button is missing an aria-label or title for accessibility.');
   }
 
   return (
     <button
+      ref={ref}
       className={`btn btn-${variant} btn-${size} ${className}`.trim()}
       disabled={disabled || loading}
       aria-label={ariaLabel}
@@ -46,4 +47,6 @@ export default function Btn({
       {children && <span>{children}</span>}
     </button>
   );
-}
+});
+
+export default Btn;

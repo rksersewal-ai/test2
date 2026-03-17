@@ -153,7 +153,7 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
     setAddingPunch(true);
     try {
       // BUG FIX: was createPunchItem (name now matches service)
-      await prototypeService.createPunchItem(inspectionId, { description: newPunch, status: 'OPEN' });
+      await prototypeService.createPunchItem(inspectionId, { description: newPunch, status: 'Open' });
       setNewPunch('');
       load();
       setToast({ type:'success', text:'Punch item added.' });

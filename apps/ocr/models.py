@@ -14,6 +14,7 @@ class OCRQueue(models.Model):
         PROCESSING = 'PROCESSING', 'Processing'
         COMPLETED = 'COMPLETED', 'Completed'
         FAILED = 'FAILED', 'Failed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
         RETRY = 'RETRY', 'Retry'
         MANUAL_REVIEW = 'MANUAL_REVIEW', 'Manual Review'
 

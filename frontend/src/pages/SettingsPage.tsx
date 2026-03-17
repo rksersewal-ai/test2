@@ -5,7 +5,7 @@
 //          Also fixed: 'Reset to Defaults' now shows confirmation before reset.
 // =============================================================================
 import React, { useState } from 'react';
-import { useSettings } from '../hooks/useSettings';
+import { useSettings, type AppSettings } from '../hooks/useSettings';
 
 type ToastState = { type: 'success' | 'error'; text: string } | null;
 

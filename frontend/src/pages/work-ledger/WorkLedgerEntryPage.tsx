@@ -59,7 +59,7 @@ export const WorkLedgerEntryPage: React.FC = () => {
         {/* Inline form — WorkLedgerForm component may not exist yet;
             using a minimal self-contained form to keep the page functional */}
         <WLEntryForm
-          initialData={existing ?? undefined}
+          initialData={existing ? mapEntryToFormData(existing) : undefined}
           onSubmit={handleSubmit}
           submitLabel={workId ? 'Update Entry' : 'Save Entry'}
         />
@@ -69,6 +69,29 @@ export const WorkLedgerEntryPage: React.FC = () => {
 };
 
 export default WorkLedgerEntryPage;
+
+function mapEntryToFormData(entry: WorkLedgerFull): Partial<WorkLedgerFormData> {
+  return {
+    received_date: entry.received_date,
+    closed_date: entry.closed_date ?? '',
+    section: entry.section,
+    engineer_id: entry.engineer_id,
+    officer_id: entry.officer_id,
+    status: entry.status,
+    pl_number: entry.pl_number ?? '',
+    drawing_number: entry.drawing_number ?? '',
+    drawing_revision: entry.drawing_revision ?? '',
+    specification_number: entry.specification_number ?? '',
+    specification_revision: entry.specification_revision ?? '',
+    tender_number: entry.tender_number ?? '',
+    case_number: entry.case_number ?? '',
+    eoffice_file_no: entry.eoffice_file_no ?? '',
+    work_category_code: entry.work_category_code,
+    description: entry.description,
+    remarks: entry.remarks ?? '',
+    details: entry.details,
+  };
+}
 
 // ── Minimal inline form (fallback if WorkLedgerForm component is absent) ─────
 function WLEntryForm({
@@ -80,9 +103,10 @@ function WLEntryForm({
   onSubmit: (d: WorkLedgerFormData) => void;
   submitLabel: string;
 }) {
+  const [categories, setCategories] = useState<Array<{ code: string; label: string }>>([]);
   const blank: WorkLedgerFormData = {
     received_date: '', closed_date: '', section: 'Mechanical',
-    engineer_id: null, officer_id: null, status: 'Open',
+    engineer_id: null, officer_id: null, status: 'DRAFT',
     pl_number: '', drawing_number: '', drawing_revision: '',
     specification_number: '', specification_revision: '',
     tender_number: '', case_number: '', eoffice_file_no: '',
@@ -90,6 +114,10 @@ function WLEntryForm({
   };
   const [form, setForm] = useState<WorkLedgerFormData>({ ...blank, ...initialData });
   const sf = (k: keyof WorkLedgerFormData, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    workLedgerService.getCategories().then(setCategories).catch(() => {});
+  }, []);
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '7px 10px',
@@ -125,20 +153,23 @@ function WLEntryForm({
       ))}
 
       <div style={fieldStyle}>
+        <label style={labelStyle}>Work Category</label>
+        <select style={inputStyle} value={form.work_category_code} onChange={e => sf('work_category_code', e.target.value)}>
+          <option value="">Select category</option>
+          {categories.map(category => (
+            <option key={category.code} value={category.code}>
+              {category.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={fieldStyle}>
         <label style={labelStyle}>Section</label>
         <select style={inputStyle} value={form.section} onChange={e => sf('section', e.target.value as any)}>
           <option value="Mechanical">Mechanical</option>
           <option value="Electrical">Electrical</option>
           <option value="General">General</option>
-        </select>
-      </div>
-
-      <div style={fieldStyle}>
-        <label style={labelStyle}>Status</label>
-        <select style={inputStyle} value={form.status} onChange={e => sf('status', e.target.value as any)}>
-          <option value="Open">Open</option>
-          <option value="Pending">Pending</option>
-          <option value="Closed">Closed</option>
         </select>
       </div>
 

@@ -36,8 +36,8 @@ class DocumentRepository:
                             Prefetch(
                                 'files',
                                 queryset=FileAttachment.objects.only(
-                                    'id', 'revision_id', 'file_name', 'file_size',
-                                    'content_type', 'ocr_status',
+                                    'id', 'revision_id', 'file_name', 'file_path',
+                                    'file_size_bytes', 'file_type', 'page_count',
                                 ),
                             )
                         )

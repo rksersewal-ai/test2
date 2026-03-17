@@ -12,8 +12,12 @@ from django.contrib import admin
 from django.urls    import path, include
 from django.conf    import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView, TokenRefreshView, TokenVerifyView,
+from rest_framework_simplejwt.views import TokenVerifyView
+from apps.core.auth_views import (
+    CookieTokenObtainPairView,
+    CookieTokenRefreshView,
+    LogoutView,
+    MeView,
 )
 
 API_V1 = 'api/v1/'
@@ -22,9 +26,11 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # ---- JWT auth -------------------------------------------------------
-    path(API_V1 + 'auth/token/',         TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path(API_V1 + 'auth/token/refresh/', TokenRefreshView.as_view(),   name='token_refresh'),
-    path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),    name='token_verify'),
+    path(API_V1 + 'auth/token/',         CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path(API_V1 + 'auth/token/refresh/', CookieTokenRefreshView.as_view(),     name='token_refresh'),
+    path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),            name='token_verify'),
+    path(API_V1 + 'auth/logout/',        LogoutView.as_view(),                  name='auth_logout'),
+    path(API_V1 + 'auth/me/',            MeView.as_view(),                      name='auth_me'),
 
     # ---- Core apps (inside apps/ package) ------------------------------
     path(API_V1 + 'core/',       include('apps.core.urls')),

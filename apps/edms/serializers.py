@@ -44,22 +44,74 @@ class DocumentTypeSerializer(serializers.ModelSerializer):
 class DocumentListSerializer(serializers.ModelSerializer):
     category_name      = serializers.CharField(source='category.name', read_only=True)
     document_type_name = serializers.CharField(source='document_type.name', read_only=True)
+    document_type      = serializers.CharField(source='document_type.name', read_only=True)
     section_name       = serializers.CharField(source='section.name', read_only=True)
+    created_by_name    = serializers.CharField(source='created_by.full_name', read_only=True)
+    version            = serializers.SerializerMethodField(read_only=True)
+    revision           = serializers.SerializerMethodField(read_only=True)
+    file_url           = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model  = Document
         fields = [
             'id', 'document_number', 'title', 'status',
-            'category_name', 'document_type_name', 'section_name',
+            'category_name', 'document_type_name', 'document_type', 'section_name',
             'source_standard', 'eoffice_file_number', 'created_at', 'updated_at',
+            'version', 'revision', 'file_url', 'created_by_name',
         ]
+
+    def _latest_revision(self, obj):
+        revisions = getattr(obj, 'revisions', None)
+        if revisions is not None:
+            revisions_list = list(revisions.all())
+            if revisions_list:
+                return revisions_list[-1]
+        return obj.revisions.order_by('-revision_date', '-created_at').first()
+
+    def get_version(self, obj):
+        revision = self._latest_revision(obj)
+        return revision.revision_number if revision else ''
+
+    def get_revision(self, obj):
+        return self.get_version(obj)
+
+    def get_file_url(self, obj):
+        return f'/api/v1/edms/documents/{obj.pk}/file/'
 
 
 class DocumentDetailSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    document_type = serializers.CharField(source='document_type.name', read_only=True)
+    document_type_name = serializers.CharField(source='document_type.name', read_only=True)
+    section_name = serializers.CharField(source='section.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    version = serializers.SerializerMethodField(read_only=True)
+    revision = serializers.SerializerMethodField(read_only=True)
+    file_url = serializers.SerializerMethodField(read_only=True)
+    tags = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model       = Document
         fields      = '__all__'
         read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    def _latest_revision(self, obj):
+        return obj.revisions.order_by('-revision_date', '-created_at').first()
+
+    def get_version(self, obj):
+        revision = self._latest_revision(obj)
+        return revision.revision_number if revision else ''
+
+    def get_revision(self, obj):
+        return self.get_version(obj)
+
+    def get_file_url(self, obj):
+        return f'/api/v1/edms/documents/{obj.pk}/file/'
+
+    def get_tags(self, obj):
+        if not obj.keywords:
+            return []
+        return [tag.strip() for tag in obj.keywords.split(',') if tag.strip()]
 
 
 class RevisionSerializer(serializers.ModelSerializer):
