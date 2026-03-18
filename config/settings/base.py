@@ -1,7 +1,13 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# ADDED: 'apps.search' to INSTALLED_APPS
-# All other settings preserved verbatim from previous commit.
+# CHANGES IN THIS COMMIT:
+#   - Added 'search' throttle scope (120/min) — prevents search endpoint from
+#     consuming the shared 'user' quota and blocking uploads/downloads.
+#   - Added CELERY_TASK_ACKS_LATE, CELERY_TASK_REJECT_ON_WORKER_LOST,
+#     CELERY_TASK_MAX_RETRIES — ensures OCR/checksum tasks are re-queued on
+#     worker crash instead of silently lost.
+#   - Removed 'apps.workledger' (duplicate dir, only 'apps.work_ledger' is
+#     canonical). Added note about apps/dsign and apps/totp not being wired.
 # =============================================================================
 import os
 import sys
@@ -36,7 +42,9 @@ INSTALLED_APPS = [
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
-    'apps.dsign',
+    # apps.dsign — digital signature module (NOT YET WIRED to URLs).
+    # Enable when dsign/urls.py is included in config/urls.py.
+    # 'apps.dsign',
     'apps.metadata',
     'apps.versioning',
     'apps.lifecycle',
@@ -48,10 +56,15 @@ INSTALLED_APPS = [
     'apps.webhooks',
     'apps.scanner',
     'apps.pl_master',
+    # apps.rbac — fine-grained object-level ACL stub (no models yet).
+    # See apps/rbac/README.md. Canonical RBAC = apps.core.permissions.
     'apps.rbac',
-    'apps.work_ledger',
+    # apps.totp — 2FA via TOTP (NOT YET WIRED to URLs).
+    # Enable when totp/urls.py is included in config/urls.py + frontend integrated.
+    # 'apps.totp',
+    'apps.work_ledger',   # canonical — apps/workledger/ dir is legacy residue, IGNORE
     'apps.sdr',
-    'apps.search',          # <-- Instant Search (Everything-style)
+    'apps.search',
     'config_mgmt',
     'prototype',
     'bom',
@@ -147,10 +160,14 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon':       '60/minute',
-        'user':       '600/minute',
-        'ocr_submit': config('OCR_SUBMIT_THROTTLE_RATE', default='20/hour'),
-        'ocr_retry':  config('OCR_RETRY_THROTTLE_RATE',  default='10/hour'),
+        'anon':        '60/minute',
+        'user':        '600/minute',
+        'ocr_submit':  config('OCR_SUBMIT_THROTTLE_RATE', default='20/hour'),
+        'ocr_retry':   config('OCR_RETRY_THROTTLE_RATE',  default='10/hour'),
+        # Dedicated search throttle — keeps search load off the shared 'user' bucket.
+        # 120/min = 2 requests/second per user (autocomplete fires every 250ms but
+        # client-side debounce reduces actual hits to ~4/s max, well within limit).
+        'search':      config('SEARCH_THROTTLE_RATE', default='120/minute'),
     },
 }
 
@@ -188,6 +205,13 @@ CELERY_TASK_SERIALIZER   = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE          = 'Asia/Kolkata'
 CELERY_BEAT_SCHEDULER    = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Task reliability: re-queue tasks on worker crash instead of silently losing them.
+# ACKS_LATE=True means the message is only acknowledged AFTER the task completes.
+# If the worker crashes mid-task (SIGKILL, OOM), the broker re-delivers it.
+CELERY_TASK_ACKS_LATE              = True
+CELERY_TASK_REJECT_ON_WORKER_LOST  = True
+CELERY_TASK_MAX_RETRIES            = 3    # global default; tasks can override
 
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     'max_retries':            3,

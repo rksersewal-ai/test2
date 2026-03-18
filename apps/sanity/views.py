@@ -1,59 +1,91 @@
 # =============================================================================
 # FILE: apps/sanity/views.py
-# SPRINT 6 — Sanity Checker API
+# Health check endpoint: GET /api/v1/health/
 #
-# GET  /api/sanity/reports/            — list past reports
-# GET  /api/sanity/reports/{id}/       — full report with issues list
-# POST /api/sanity/run/                — trigger immediate check (admin)
-# GET  /api/sanity/live/               — run checks synchronously, return results
-#                                         (no DB save — for dashboard preview)
+# Returns HTTP 200 with JSON body when all systems are healthy.
+# Returns HTTP 503 when DB or cache is unavailable.
+#
+# Used by:
+#   - IIS Application Request Routing health probe
+#   - Windows Task Scheduler monitoring script
+#   - LAN monitoring tools (PRTG, Zabbix, simple curl)
+#
+# Response format:
+#   {
+#     "status": "ok" | "degraded",
+#     "db":     "ok" | "error: <message>",
+#     "cache":  "ok" | "error: <message>",
+#     "version": "1.0"
+#   }
+#
+# Authentication: NOT required — health check must work before login.
+# Rate limit:     Minimal (LAN-only deployment; behind LanOnlyMiddleware).
 # =============================================================================
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response   import Response
+import logging
+from django.db import connection, OperationalError as DjDBError
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
 
-from apps.sanity.models      import SanityReport
-from apps.sanity.serializers import SanityReportSerializer, RunSanitySerializer
-from apps.core.permissions   import IsAdminOrSectionHead
+logger = logging.getLogger(__name__)
+
+APP_VERSION = '1.0'
 
 
-class SanityReportViewSet(viewsets.GenericViewSet,
-                          viewsets.mixins.ListModelMixin,
-                          viewsets.mixins.RetrieveModelMixin):
-    serializer_class   = SanityReportSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrSectionHead]
-    queryset           = SanityReport.objects.select_related('run_by').all()
+def _check_db() -> str:
+    """Ping PostgreSQL with SELECT 1. Returns 'ok' or 'error: <msg>'."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+        return 'ok'
+    except DjDBError as exc:
+        logger.error('Health check DB failure: %s', exc)
+        return f'error: {exc}'
+    except Exception as exc:
+        logger.error('Health check DB unexpected error: %s', exc)
+        return f'error: {exc}'
 
-    @action(detail=False, methods=['post'], url_path='run')
-    def run(self, request):
-        """Queue a full sanity check via Celery."""
-        ser = RunSanitySerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        from apps.sanity.tasks import run_sanity_checks
-        task = run_sanity_checks.delay(
-            stale_draft_days = ser.validated_data['stale_draft_days'],
-            user_id          = request.user.pk,
-        )
-        return Response(
-            {'status': 'queued', 'task_id': task.id},
-            status=status.HTTP_202_ACCEPTED
-        )
 
-    @action(detail=False, methods=['get'], url_path='live')
-    def live(self, request):
-        """
-        Synchronous live check — returns issues without saving a report.
-        Useful for the dashboard health widget.
-        Max ~2 s on a typical LAN DB.
-        """
-        days = int(request.query_params.get('stale_draft_days', 90))
-        from apps.sanity.checks import run_all_checks
-        issues = run_all_checks(stale_draft_days=days)
-        summary = {
-            'total':    len(issues),
-            'errors':   sum(1 for i in issues if i['severity'] == 'ERROR'),
-            'warnings': sum(1 for i in issues if i['severity'] == 'WARNING'),
-            'info':     sum(1 for i in issues if i['severity'] == 'INFO'),
-            'issues':   issues,
-        }
-        return Response(summary)
+def _check_cache() -> str:
+    """Ping the cache backend with a set/get round-trip. Returns 'ok' or 'error: <msg>'."""
+    try:
+        from django.core.cache import cache
+        cache.set('__health_check__', '1', timeout=10)
+        val = cache.get('__health_check__')
+        if val != '1':
+            return 'error: cache set/get mismatch'
+        return 'ok'
+    except Exception as exc:
+        logger.error('Health check cache failure: %s', exc)
+        return f'error: {exc}'
+
+
+@api_view(['GET'])
+@authentication_classes([])   # no auth required
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    GET /api/v1/health/
+
+    Lightweight health probe. Checks DB + cache in < 50ms.
+    Returns 200 if healthy, 503 if degraded.
+    """
+    db_status    = _check_db()
+    cache_status = _check_cache()
+
+    all_ok   = (db_status == 'ok' and cache_status == 'ok')
+    http_status = status.HTTP_200_OK if all_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    payload = {
+        'status':  'ok' if all_ok else 'degraded',
+        'db':      db_status,
+        'cache':   cache_status,
+        'version': APP_VERSION,
+    }
+
+    if not all_ok:
+        logger.warning('Health check degraded: db=%s cache=%s', db_status, cache_status)
+
+    return Response(payload, status=http_status)

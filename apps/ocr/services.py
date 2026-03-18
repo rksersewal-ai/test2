@@ -12,6 +12,11 @@ FIXES applied:
         data instead of the previous hardcoded 0.85.
   #24 - Multi-page TIFF processing uses ImageSequence to iterate frames without
         loading all pages into RAM simultaneously.
+  #NEW - NOT_OCR_COMPATIBLE: On second failure (or on first failure with a
+        known permanent error such as password-protected PDF, corrupt file,
+        OS permission denied), the queue item is marked NOT_OCR_COMPATIBLE
+        and FileAttachment.is_ocr_compatible is set to False permanently.
+        The item is never re-queued automatically after this point.
 """
 import os
 import re
@@ -52,6 +57,37 @@ def check_tesseract_available() -> bool:
         return False
 
 
+def _mark_not_ocr_compatible(item, reason: str):
+    """
+    Mark a queue item as permanently NOT_OCR_COMPATIBLE and update
+    the linked FileAttachment so the UI can show the correct badge.
+
+    This is the single authoritative place for the NOT_OCR_COMPATIBLE
+    transition — called from both the service layer and the Celery task.
+    """
+    item.status        = item.Status.NOT_OCR_COMPATIBLE
+    item.failure_reason = reason[:2000]   # guard against huge exception strings
+    item.completed_at  = timezone.now()
+    item.save(update_fields=['status', 'failure_reason', 'completed_at'])
+
+    # Propagate to FileAttachment so list/detail views can show badge
+    try:
+        fa = item.file_attachment
+        if hasattr(fa, 'is_ocr_compatible'):
+            fa.is_ocr_compatible = False
+            fa.save(update_fields=['is_ocr_compatible'])
+    except Exception as prop_exc:
+        logger.warning(
+            'Could not propagate is_ocr_compatible=False to attachment %s: %s',
+            getattr(item, 'file_attachment_id', '?'), prop_exc,
+        )
+
+    logger.warning(
+        'OCR queue item %s marked NOT_OCR_COMPATIBLE. Reason: %s',
+        item.pk, reason,
+    )
+
+
 class OCRService:
 
     @staticmethod
@@ -59,39 +95,64 @@ class OCRService:
         from apps.ocr.models import OCRQueue
         from apps.edms.models import FileAttachment
         file_obj = FileAttachment.objects.get(pk=file_id)
+
+        # Do not re-queue files already marked as permanently incompatible.
+        if hasattr(file_obj, 'is_ocr_compatible') and file_obj.is_ocr_compatible is False:
+            logger.info(
+                'queue_file_for_ocr: attachment %s is marked not OCR compatible — skipping.',
+                file_id,
+            )
+            return None
+
         queue_item, created = OCRQueue.objects.get_or_create(
-            file=file_obj,
+            file_attachment=file_obj,
             defaults={
-                'priority':        priority,
-                'language':        language,
-                'created_by_id':   user_id,
-                'status':          OCRQueue.Status.PENDING,
+                'priority':   priority,
+                'status':     OCRQueue.Status.PENDING,
             }
         )
         if not created and queue_item.status == OCRQueue.Status.FAILED:
-            queue_item.status   = OCRQueue.Status.PENDING
-            queue_item.attempts = 0
-            queue_item.last_error = ''
-            queue_item.save(update_fields=['status', 'attempts', 'last_error'])
+            queue_item.status        = OCRQueue.Status.PENDING
+            queue_item.attempts      = 0
+            queue_item.failure_reason = ''
+            queue_item.save(update_fields=['status', 'attempts', 'failure_reason'])
         return queue_item
 
     @staticmethod
     def retry_failed_item(queue_id: int):
         from apps.ocr.models import OCRQueue
         item = OCRQueue.objects.get(pk=queue_id)
+        if item.status == OCRQueue.Status.NOT_OCR_COMPATIBLE:
+            raise ValueError(
+                'This file is marked NOT_OCR_COMPATIBLE and cannot be retried automatically. '
+                'If you believe this is a mistake, override via the admin panel.'
+            )
         if item.status not in [OCRQueue.Status.FAILED, OCRQueue.Status.MANUAL_REVIEW]:
             raise ValueError(f'Cannot retry item with status: {item.status}')
-        item.status   = OCRQueue.Status.PENDING
-        item.attempts = 0
-        item.last_error = ''
-        item.save(update_fields=['status', 'attempts', 'last_error'])
+        item.status        = OCRQueue.Status.PENDING
+        item.attempts      = 0
+        item.failure_reason = ''
+        item.save(update_fields=['status', 'attempts', 'failure_reason'])
         return item
 
     @staticmethod
     def process_file(queue_id: int):
-        """Main OCR processing entry point — called by background worker."""
+        """
+        Main OCR processing entry point — called by background worker.
+
+        Retry policy:
+          - attempt 1 fails with PERMANENT error  → immediately NOT_OCR_COMPATIBLE
+          - attempt 1 fails with transient error  → RETRY (will be picked up again)
+          - attempt 2 fails (any error)           → NOT_OCR_COMPATIBLE
+        """
         from apps.ocr.models import OCRQueue, OCRResult
-        item = OCRQueue.objects.select_related('file').get(pk=queue_id)
+        item = OCRQueue.objects.select_related('file_attachment').get(pk=queue_id)
+
+        # Safety guard: never process a permanently incompatible file
+        if item.status == OCRQueue.Status.NOT_OCR_COMPATIBLE:
+            logger.info('process_file: queue item %s is NOT_OCR_COMPATIBLE — skipping.', queue_id)
+            return None
+
         item.status     = OCRQueue.Status.PROCESSING
         item.started_at = timezone.now()
         item.attempts  += 1
@@ -104,38 +165,44 @@ class OCRService:
             import fitz  # PyMuPDF
 
             pytesseract.pytesseract.tesseract_cmd = settings.OCR_TESSERACT_CMD
-            file_path = item.file.file_path.path
+            file_path = item.file_attachment.file_path.path
 
             # FIX #9: guard against huge files that would OOM the worker
             file_size_mb = os.path.getsize(file_path) / 1024 / 1024
             if file_size_mb > OCR_MAX_FILE_MB:
                 raise ValueError(
                     f'File too large for OCR: {file_size_mb:.1f} MB '
-                    f'(limit: {OCR_MAX_FILE_MB} MB). Mark as MANUAL_REVIEW.'
+                    f'(limit: {OCR_MAX_FILE_MB} MB).'
                 )
 
-            pages_text        = []
-            full_text_parts   = []
-            all_confidences   = []
+            pages_text      = []
+            full_text_parts = []
+            all_confidences = []
 
             if file_path.lower().endswith('.pdf'):
-                # FIX #2: catch fitz-specific errors before generic Exception
                 try:
                     doc = fitz.open(file_path)
                 except Exception as fitz_err:
-                    raise RuntimeError(f'Cannot open PDF (possibly corrupt): {fitz_err}') from fitz_err
+                    raise RuntimeError(f'Cannot open PDF: {fitz_err}') from fitz_err
+
+                # Detect password-protected PDF immediately
+                if doc.is_encrypted and not doc.authenticate(''):
+                    doc.close()
+                    raise RuntimeError(
+                        'PDF is password-protected (encrypted). '
+                        'Cannot OCR without the password.'
+                    )
 
                 for page_num, page in enumerate(doc):
                     text = page.get_text().strip()
                     if not text:
                         pix = page.get_pixmap(dpi=settings.OCR_DPI)
                         img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
-                        # FIX #21: collect per-word confidence
                         data = pytesseract.image_to_data(
-                            img, lang=item.language,
+                            img, lang=OCRService._get_language(item),
                             output_type=pytesseract.Output.DICT
                         )
-                        text = ' '.join([w for w in data['text'] if str(w).strip()])
+                        text  = ' '.join([w for w in data['text'] if str(w).strip()])
                         confs = [
                             int(c) for c in data['conf']
                             if str(c).lstrip('-').isdigit() and int(c) >= 0
@@ -146,13 +213,11 @@ class OCRService:
                 doc.close()
 
             else:
-                # FIX #24: use ImageSequence to iterate multi-page TIFFs
-                # frame by frame without loading all pages into RAM at once.
                 img = Image.open(file_path)
                 for frame_num, frame in enumerate(ImageSequence.Iterator(img)):
-                    frame_copy = frame.copy()  # detach from file handle
+                    frame_copy = frame.copy()
                     data = pytesseract.image_to_data(
-                        frame_copy, lang=item.language,
+                        frame_copy, lang=OCRService._get_language(item),
                         output_type=pytesseract.Output.DICT
                     )
                     text  = ' '.join([w for w in data['text'] if str(w).strip()])
@@ -167,25 +232,18 @@ class OCRService:
             full_text = '\n'.join(full_text_parts)
             elapsed   = time.time() - start
 
-            # FIX #21: real confidence from Tesseract data (0–100 scale → 0.0–1.0)
             confidence_score = (
                 round(sum(all_confidences) / len(all_confidences) / 100, 4)
                 if all_confidences else 0.0
             )
 
             result, _ = OCRResult.objects.update_or_create(
-                file=item.file,
+                queue_item=item,
                 defaults={
-                    'queue':                    item,
-                    'full_text':                full_text,
-                    'page_count':               len(pages_text),
-                    'confidence_score':         confidence_score,   # FIX #21
-                    'page_results':             pages_text,
-                    'ocr_engine':               'tesseract',
-                    'language_detected':        item.language,
-                    'processing_time_seconds':  elapsed,
-                    'file_size_bytes':          os.path.getsize(file_path),
-                    'indexed_at':               timezone.now(),
+                    'full_text':         full_text,
+                    'page_count':        len(pages_text),
+                    'confidence':        confidence_score,
+                    'language_detected': OCRService._get_language(item),
                 }
             )
 
@@ -198,47 +256,59 @@ class OCRService:
             return result
 
         except Exception as exc:
-            elapsed = time.time() - start
-            logger.error('OCR failed for queue %s: %s', queue_id, exc)
-            item.last_error = str(exc)
-            item.status = (
-                OCRQueue.Status.MANUAL_REVIEW
-                if item.attempts >= item.max_attempts
-                else OCRQueue.Status.RETRY
-            )
+            elapsed     = time.time() - start
+            error_str   = str(exc)
+            logger.error('OCR failed for queue %s (attempt %s): %s', queue_id, item.attempts, exc)
+
             item.processing_time_seconds = elapsed
-            item.save(update_fields=['status', 'last_error', 'processing_time_seconds'])
+
+            # Decision: go straight to NOT_OCR_COMPATIBLE or allow retry?
+            is_permanent = item.is_permanent_failure(error_str)
+            exhausted    = item.attempts >= item.max_attempts   # max_attempts=2
+
+            if is_permanent or exhausted:
+                # Permanent error on any attempt, OR transient error after max retries
+                _mark_not_ocr_compatible(item, reason=error_str)
+            else:
+                # Transient error on first attempt — allow one retry
+                item.status        = OCRQueue.Status.RETRY
+                item.failure_reason = error_str[:2000]
+                item.save(update_fields=['status', 'failure_reason', 'processing_time_seconds'])
             raise
+
+    @staticmethod
+    def _get_language(item) -> str:
+        """Get OCR language — fall back to settings default."""
+        return getattr(item, 'language', None) or getattr(settings, 'OCR_DEFAULT_LANG', 'eng')
 
     @staticmethod
     def _extract_entities(ocr_result, full_text: str):
         """Regex-based entity extraction for drawing/doc numbers.
-        FIX #14: Capped at MAX_ENTITIES_PER_PATTERN=500 per pattern to prevent
-        bulk_create holding a DB write lock for seconds on verbose OCR output.
+        FIX #14: Capped at MAX_ENTITIES_PER_PATTERN=500 per pattern.
         """
-        from apps.ocr.models import ExtractedEntity
+        from apps.ocr.models import OCRExtractedEntity
 
         MAX_ENTITIES_PER_PATTERN = 500
 
         patterns = [
-            (ExtractedEntity.EntityType.DRAWING_NUMBER, r'DRG[.\-/]?\d{4,}'),
-            (ExtractedEntity.EntityType.SPEC_NUMBER,    r'SPEC[.\-/]?[A-Z0-9]{4,}'),
-            (ExtractedEntity.EntityType.STANDARD,       r'(IS|DIN|RDSO|IRIS|ABB)[.\-/\s]?[\d]{3,}'),
-            (ExtractedEntity.EntityType.REVISION,       r'Rev[.]?\s*[A-Z0-9]{1,4}'),
+            (OCRExtractedEntity.EntityType.DRAWING_NUMBER, r'DRG[.\-/]?\d{4,}'),
+            (OCRExtractedEntity.EntityType.SPECIFICATION,  r'SPEC[.\-/]?[A-Z0-9]{4,}'),
+            (OCRExtractedEntity.EntityType.STANDARD,       r'(IS|DIN|RDSO|IRIS|ABB)[.\-/\s]?[\d]{3,}'),
+            (OCRExtractedEntity.EntityType.DATE,           r'Rev[.]?\s*[A-Z0-9]{1,4}'),
         ]
         entities = []
         for entity_type, pattern in patterns:
-            # FIX #14: islice caps matches per pattern
             matches = itertools.islice(
                 re.finditer(pattern, full_text, re.IGNORECASE),
                 MAX_ENTITIES_PER_PATTERN
             )
             for match in matches:
-                entities.append(ExtractedEntity(
-                    ocr_result=ocr_result,
+                entities.append(OCRExtractedEntity(
+                    result=ocr_result,
                     entity_type=entity_type,
-                    entity_value=match.group().strip(),
-                    context=full_text[max(0, match.start() - 50):match.end() + 50],
+                    value=match.group().strip(),
+                    confidence=None,
+                    page_number=None,
                 ))
         if entities:
-            ExtractedEntity.objects.bulk_create(entities, ignore_conflicts=True)
+            OCRExtractedEntity.objects.bulk_create(entities, ignore_conflicts=True)

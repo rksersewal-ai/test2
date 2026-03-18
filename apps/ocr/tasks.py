@@ -1,10 +1,17 @@
 # =============================================================================
 # FILE: apps/ocr/tasks.py
+#
 # Tasks:
-#   compute_attachment_checksum       — FIX #8  (introduced in previous commit)
-#   recompute_missing_checksums_task  — FIX #4b (new): Celery Beat wrapper that
-#       calls the management-command logic as a Celery task so it can be
-#       scheduled via django-celery-beat every 15 minutes.
+#   compute_attachment_checksum       — FIX #8 (async SHA-256 after upload)
+#   recompute_missing_checksums_task  — FIX #4b (Celery Beat every 15 min)
+#   run_ocr_task                      — NEW: wraps OCRService.process_file with
+#       max_retries=1 (one Celery retry = total 2 attempts) then marks
+#       NOT_OCR_COMPATIBLE on final failure. Idempotent on re-delivery
+#       because OCRService.process_file guards against NOT_OCR_COMPATIBLE.
+#
+# Celery reliability (from settings):
+#   CELERY_TASK_ACKS_LATE=True             — message acked after task finishes
+#   CELERY_TASK_REJECT_ON_WORKER_LOST=True — re-queued on SIGKILL/OOM
 # =============================================================================
 import hashlib
 import logging
@@ -67,12 +74,9 @@ def recompute_missing_checksums_task(
     batch_size: int = 50,
 ):
     """
-    FIX #4b: Celery Beat wrapper around the recompute_missing_checksums
-    management command logic. Finds FileAttachment rows with blank
-    checksum_sha256 and computes them synchronously (no sub-tasks) so that
-    a Celery downtime never permanently loses checksums.
-
-    Scheduled every 15 minutes via OCRConfig.ready().
+    FIX #4b: Celery Beat wrapper. Finds FileAttachment rows with blank
+    checksum_sha256 and computes them so Celery downtime never permanently
+    loses checksums. Scheduled every 15 minutes via OCRConfig.ready().
     """
     from apps.edms.models import FileAttachment
 
@@ -118,3 +122,65 @@ def recompute_missing_checksums_task(
         updated, errors,
     )
     return {'updated': updated, 'errors': errors}
+
+
+@shared_task(
+    bind=True,
+    max_retries=1,            # Celery level: 1 retry = total 2 attempts
+    default_retry_delay=30,   # wait 30 seconds before retry (transient I/O errors)
+    acks_late=True,           # override global setting explicitly for clarity
+)
+def run_ocr_task(self, queue_id: int):
+    """
+    Celery task that wraps OCRService.process_file.
+
+    Retry policy (aligned with OCRQueue.max_attempts=2):
+      Attempt 1 (Celery try 0):
+        - Success              → COMPLETED, done
+        - Permanent error      → NOT_OCR_COMPATIBLE immediately (no retry)
+        - Transient error      → OCRQueue status=RETRY, Celery retries after 30s
+
+      Attempt 2 (Celery try 1 = self.request.retries == 1):
+        - Success              → COMPLETED
+        - Any error            → NOT_OCR_COMPATIBLE (max_attempts exhausted)
+
+    The OCRService.process_file method tracks attempts via OCRQueue.attempts
+    and decides RETRY vs NOT_OCR_COMPATIBLE. The Celery retry here ensures the
+    worker actually picks the job up again after 30s without manual intervention.
+
+    Idempotency: OCRService.process_file checks for NOT_OCR_COMPATIBLE before
+    touching the DB, so accidental re-delivery is safe.
+    """
+    from apps.ocr.services import OCRService, _mark_not_ocr_compatible
+    from apps.ocr.models import OCRQueue
+
+    try:
+        result = OCRService.process_file(queue_id)
+        return {'status': 'completed', 'queue_id': queue_id}
+    except Exception as exc:
+        error_str = str(exc)
+        logger.error(
+            'run_ocr_task queue=%s attempt=%s/%s failed: %s',
+            queue_id, self.request.retries + 1, self.max_retries + 1, error_str,
+        )
+
+        if self.request.retries < self.max_retries:
+            # Service already set status=RETRY — let Celery retry after delay
+            raise self.retry(exc=exc)
+        else:
+            # Final attempt exhausted — service will have set NOT_OCR_COMPATIBLE
+            # but guard here too in case process_file raised before reaching that code
+            try:
+                item = OCRQueue.objects.get(pk=queue_id)
+                if item.status not in (
+                    OCRQueue.Status.COMPLETED,
+                    OCRQueue.Status.NOT_OCR_COMPATIBLE,
+                ):
+                    _mark_not_ocr_compatible(item, reason=f'Celery max_retries exhausted: {error_str}')
+            except OCRQueue.DoesNotExist:
+                pass
+            logger.warning(
+                'run_ocr_task queue=%s permanently marked NOT_OCR_COMPATIBLE after %s attempts.',
+                queue_id, self.max_retries + 1,
+            )
+            return {'status': 'not_ocr_compatible', 'queue_id': queue_id}
