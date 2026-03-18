@@ -19,13 +19,13 @@ class PunchItemSerializer(serializers.ModelSerializer):
 
     def get_closed_by_name(self, obj):
         if obj.closed_by:
-            return obj.closed_by.get_full_name() or obj.closed_by.username
+            return obj.closed_by.full_name or obj.closed_by.username
         return None
 
 
 class InspectionSerializer(serializers.ModelSerializer):
     punch_items      = PunchItemSerializer(many=True, read_only=True)
-    open_punch_count = serializers.IntegerField(read_only=True)
+    open_punch_count = serializers.IntegerField(source='open_punch_total', read_only=True)
     created_by_name  = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -41,7 +41,7 @@ class InspectionSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
+            return obj.created_by.full_name or obj.created_by.username
         return None
 
     def create(self, validated_data):
@@ -53,7 +53,7 @@ class InspectionSerializer(serializers.ModelSerializer):
 
 class InspectionListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list view — excludes nested punch_items."""
-    open_punch_count = serializers.IntegerField(read_only=True)
+    open_punch_count = serializers.IntegerField(source='open_punch_total', read_only=True)
     created_by_name  = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -69,5 +69,5 @@ class InspectionListSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
+            return obj.created_by.full_name or obj.created_by.username
         return None

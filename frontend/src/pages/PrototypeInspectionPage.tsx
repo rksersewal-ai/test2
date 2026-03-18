@@ -12,6 +12,22 @@ import './PrototypeInspectionPage.css';
 
 type PIView = 'list' | 'detail' | 'form';
 
+const INSPECTION_STATUS_OPTIONS = [
+  { value: 'Open', label: 'Open' },
+  { value: 'In Progress', label: 'In Progress' },
+  { value: 'Pass', label: 'Pass' },
+  { value: 'Fail', label: 'Fail' },
+  { value: 'Closed', label: 'Closed' },
+];
+
+const INSPECTION_TYPE_OPTIONS = [
+  { value: 'Prototype', label: 'Prototype' },
+  { value: 'Periodic', label: 'Periodic' },
+  { value: 'Special', label: 'Special' },
+  { value: 'ReturnToService', label: 'Return To Service' },
+  { value: 'PDI', label: 'PDI' },
+];
+
 export default function PrototypeInspectionPage() {
   const [view,     setView]     = useState<PIView>('list');
   const [activeId, setActiveId] = useState<number|null>(null);
@@ -54,8 +70,8 @@ function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void })
   useEffect(() => { load(); }, [load]);
 
   const STATUS_CLS: Record<string,string> = {
-    OPEN:'pi-badge-open', IN_PROGRESS:'pi-badge-inprogress',
-    PASS:'pi-badge-pass', FAIL:'pi-badge-fail', CLOSED:'pi-badge-closed',
+    Open:'pi-badge-open', 'In Progress':'pi-badge-inprogress',
+    Pass:'pi-badge-pass', Fail:'pi-badge-fail', Closed:'pi-badge-closed',
   };
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -71,11 +87,9 @@ function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void })
           placeholder="Search loco no, inspection type…" width={300} />
         <select className="pi-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
           <option value="">All Status</option>
-          <option value="OPEN">Open</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="PASS">Pass</option>
-          <option value="FAIL">Fail</option>
-          <option value="CLOSED">Closed</option>
+          {INSPECTION_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </select>
         <Btn size="sm" variant="ghost" onClick={load}>↺ Refresh</Btn>
       </div>
@@ -99,8 +113,8 @@ function PIList({ onView, onNew }: { onView:(id:number)=>void; onNew:()=>void })
                 <td className="pi-muted">{ins.inspector_name ?? ins.inspector ?? '—'}</td>
                 <td><span className={`pi-badge ${STATUS_CLS[ins.status] ?? ''}`}>{ins.status}</span></td>
                 <td className="pi-center">
-                  <span className={`pi-punch-count${(ins.open_punch_items ?? 0) > 0 ? ' pi-punch-count--open' : ''}`}>
-                    {ins.open_punch_items ?? 0} open
+                  <span className={`pi-punch-count${(ins.open_punch_count ?? 0) > 0 ? ' pi-punch-count--open' : ''}`}>
+                    {ins.open_punch_count ?? 0} open
                   </span>
                 </td>
                 <td className="pi-actions">
@@ -188,7 +202,7 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
         subtitle={`${ins?.loco_class ?? ''} — ${ins?.loco_number ?? ''} — ${ins?.inspection_type ?? ''}`}
         back={onBack}
       >
-        {ins?.status !== 'CLOSED' && (
+        {ins?.status !== 'Closed' && (
           <Btn size="sm" variant="primary" onClick={handleCloseInspection}>✓ Close Inspection</Btn>
         )}
       </PageHeader>
@@ -221,23 +235,23 @@ function PIDetail({ inspectionId, onBack }: { inspectionId:number; onBack:()=>vo
         </div>
 
         <div className="pi-card">
-          <div className="pi-card-title">📌 Punch List ({punches.filter((p: any) => p.status === 'OPEN').length} open)</div>
+          <div className="pi-card-title">📌 Punch List ({punches.filter((p: any) => p.status === 'Open').length} open)</div>
           <div className="pi-card-body">
             {punches.length === 0 && (
               <div className="pi-no-punch">No punch items. Inspection is clean ✅</div>
             )}
             {punches.map((p: any, i: number) => (
-              <div key={p.id ?? i} className={`pi-punch-item${p.status === 'CLOSED' ? ' pi-punch-item--closed' : ''}`}>
+              <div key={p.id ?? i} className={`pi-punch-item${p.status === 'Closed' ? ' pi-punch-item--closed' : ''}`}>
                 <span className={`pi-punch-status pi-punch-status--${p.status?.toLowerCase()}`}>●</span>
                 <span className="pi-punch-desc">{p.description}</span>
-                {p.status === 'OPEN' && (
+                {p.status === 'Open' && (
                   // BUG FIX: was closePunchItem(inspectionId, p.id) — fixed to closePunchItem(p.id)
                   <Btn size="sm" variant="ghost" onClick={() => handleClosePunch(p.id)}>✓ Close</Btn>
                 )}
               </div>
             ))}
 
-            {ins?.status !== 'CLOSED' && (
+            {ins?.status !== 'Closed' && (
               <div className="pi-add-punch">
                 <input
                   className="pi-punch-input"
@@ -261,7 +275,7 @@ function PIForm({ item, onDone }: { item: any|null; onDone: ()=>void }) {
   const [form, setForm] = useState({
     loco_number:     item?.loco_number     ?? '',
     loco_class:      item?.loco_class      ?? 'WAG-9',
-    inspection_type: item?.inspection_type ?? 'PROTOTYPE',
+    inspection_type: item?.inspection_type ?? 'Prototype',
     inspection_date: item?.inspection_date ?? new Date().toISOString().slice(0, 10),
     inspector:       item?.inspector       ?? '',
     remarks:         item?.remarks         ?? '',
@@ -271,8 +285,6 @@ function PIForm({ item, onDone }: { item: any|null; onDone: ()=>void }) {
   const [toast,  setToast]  = useState<ToastMsg|null>(null);
 
   const LOCO  = ['WAG-9','WAG-9H','WAP-7','WAP-5','WAG-12B','MEMU','DEMU'];
-  const TYPES = ['PROTOTYPE','PERIODIC','SPECIAL','RETURN_TO_SERVICE','PDI'];
-
   const sf = (k: string, v: string) => {
     setForm(f => ({ ...f, [k]: v }));
     setErrors(e => ({ ...e, [k]: '' }));
@@ -319,7 +331,9 @@ function PIForm({ item, onDone }: { item: any|null; onDone: ()=>void }) {
           <div className="pi-field">
             <label>Inspection Type</label>
             <select value={form.inspection_type} onChange={e => sf('inspection_type', e.target.value)}>
-              {TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              {INSPECTION_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </div>
           <div className="pi-field">

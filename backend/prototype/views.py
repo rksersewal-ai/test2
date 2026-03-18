@@ -23,10 +23,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
         return (
             Inspection.objects
             .select_related('created_by')
-            .annotate(open_punch_count=Count(
+            .annotate(open_punch_total=Count(
                 'punch_items', filter=__import__('django.db.models', fromlist=['Q']).Q(punch_items__status='Open')
             ))
             .prefetch_related('punch_items__closed_by')
+            .order_by('-inspection_date', '-created_at')
         )
 
     def get_serializer_class(self):
