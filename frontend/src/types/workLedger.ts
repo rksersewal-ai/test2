@@ -12,6 +12,12 @@ export interface WorkCategory {
   sort_order: number;
 }
 
+export interface WorkLedgerSectionOption {
+  id: number;
+  code: string;
+  name: string;
+}
+
 export interface WorkLedgerDetail {
   field_name: string;
   field_value: string | null;

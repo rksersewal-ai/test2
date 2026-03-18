@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Btn, ConfirmDialog, PageHeader, SearchBar, Toast } from '../../components/common';
 import type { ToastMsg } from '../../components/common';
+import { useAuthContext } from '../../context/AuthContext';
 import { workLedgerService } from '../../services/workLedgerService';
 import type { WorkLedgerListItem } from '../../types/workLedger';
 import './WorkLedgerPage.css';
@@ -24,6 +25,7 @@ interface ReviewState {
 
 export default function WorkLedgerPage() {
   const navigate = useNavigate();
+  const { user } = useAuthContext();
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -34,6 +36,9 @@ export default function WorkLedgerPage() {
   const [deleteTarget, setDeleteTarget] = useState<EntryRow | null>(null);
   const [reviewState, setReviewState] = useState<ReviewState | null>(null);
   const pageSize = 20;
+  const canReviewEntries = Boolean(
+    user?.is_staff || ['ADMIN', 'SECTION_HEAD'].includes(String(user?.role ?? '').toUpperCase())
+  );
 
   const params = useMemo(() => {
     const next: Record<string, string> = {
@@ -221,7 +226,7 @@ export default function WorkLedgerPage() {
             {entries.map((entry) => {
               const editable = ['DRAFT', 'RETURNED'].includes(entry.status);
               const submittable = ['DRAFT', 'RETURNED'].includes(entry.status);
-              const reviewable = entry.status === 'SUBMITTED';
+              const reviewable = canReviewEntries && entry.status === 'SUBMITTED';
 
               return (
                 <tr key={entry.work_id}>
@@ -291,5 +296,5 @@ export default function WorkLedgerPage() {
 }
 
 function formatReference(entry: EntryRow) {
-  return entry.pl_number ?? entry.drawing_number ?? entry.tender_number ?? '-';
+  return entry.pl_number || entry.drawing_number || entry.tender_number || '-';
 }

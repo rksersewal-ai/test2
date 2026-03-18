@@ -6,6 +6,7 @@
 // =============================================================================
 import api from '../api/client';
 import type { PaginatedResponse } from '../api/types';
+import { apiUrl } from '../api/base';
 import type {
   WorkLedgerListItem,
   WorkLedgerFull,
@@ -14,9 +15,14 @@ import type {
   ActivityReportRow,
   MonthlyKpiResponse,
   WorkCategory,
+  WorkLedgerSectionOption,
 } from '../types/workLedger';
 
 const BASE = '/work-ledger';
+
+function unwrapList<T>(payload: T[] | PaginatedResponse<T>): T[] {
+  return Array.isArray(payload) ? payload : (payload.results ?? []);
+}
 
 export const workLedgerService = {
   // ── Entries ────────────────────────────────────────────────────────────────
@@ -43,10 +49,25 @@ export const workLedgerService = {
 
   // ── Categories ─────────────────────────────────────────────────────────────
   listCategories: () =>
-    api.get<WorkCategory[]>(`${BASE}/categories/`).then(r => r.data),
+    api
+      .get<WorkCategory[] | PaginatedResponse<WorkCategory>>(`${BASE}/categories/`, {
+        params: { page_size: 200 },
+      })
+      .then(r => unwrapList(r.data)),
 
   getCategories: () =>
-    api.get<WorkCategory[]>(`${BASE}/categories/`).then(r => r.data),
+    api
+      .get<WorkCategory[] | PaginatedResponse<WorkCategory>>(`${BASE}/categories/`, {
+        params: { page_size: 200 },
+      })
+      .then(r => unwrapList(r.data)),
+
+  getSections: () =>
+    api
+      .get<WorkLedgerSectionOption[] | PaginatedResponse<WorkLedgerSectionOption>>('/core/sections/', {
+        params: { page_size: 200 },
+      })
+      .then(r => unwrapList(r.data)),
 
   // ── Reports ────────────────────────────────────────────────────────────────
   getMonthlyKpi: (year: number, month: number, section?: string) => {
@@ -81,7 +102,7 @@ export const workLedgerService = {
     if (filters.category)    params.set('category',    filters.category);
     if (filters.pl_number)   params.set('pl_number',   filters.pl_number);
     if (filters.status)      params.set('status',      filters.status);
-    return `${BASE}/report/export/?${params.toString()}`;
+    return apiUrl(`${BASE}/report/export/?${params.toString()}`);
   },
 
   downloadReport: (year: number, month: number, format: 'pdf' | 'xlsx' = 'xlsx') =>

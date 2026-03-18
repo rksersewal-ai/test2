@@ -1,16 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { workLedgerService } from '../../services/workLedgerService';
-import type { ActivityReportFilters, ActivityReportRow, WorkCategory } from '../../types/workLedger';
+import type {
+  ActivityReportFilters,
+  ActivityReportRow,
+  WorkCategory,
+  WorkLedgerSectionOption,
+} from '../../types/workLedger';
 
 export const WorkActivityReportPage: React.FC = () => {
   const [categories, setCategories] = useState<WorkCategory[]>([]);
+  const [sections, setSections] = useState<WorkLedgerSectionOption[]>([]);
   const [rows, setRows] = useState<ActivityReportRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<ActivityReportFilters>({});
 
   useEffect(() => {
-    workLedgerService.getCategories().then(setCategories).catch(() => {});
+    Promise.all([
+      workLedgerService.getCategories(),
+      workLedgerService.getSections(),
+    ]).then(([nextCategories, nextSections]) => {
+      setCategories(nextCategories);
+      setSections(nextSections);
+    }).catch(() => {});
   }, []);
 
   const setFilter = (key: keyof ActivityReportFilters, value: string | number | undefined) => {
@@ -32,7 +44,7 @@ export const WorkActivityReportPage: React.FC = () => {
 
   const handleExport = () => {
     const url = workLedgerService.getExportUrl(filters, 'csv');
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener');
   };
 
   const inputStyle: React.CSSProperties = {
@@ -53,7 +65,7 @@ export const WorkActivityReportPage: React.FC = () => {
     cursor: 'pointer',
   };
 
-  const STATUS_COLORS: Record<string, string> = {
+  const statusColors: Record<string, string> = {
     DRAFT: '#fbbf24',
     SUBMITTED: '#60a5fa',
     VERIFIED: '#34d399',
@@ -119,9 +131,14 @@ export const WorkActivityReportPage: React.FC = () => {
             onChange={event => setFilter('section', event.target.value)}
           >
             <option value="">All</option>
-            <option value="Mechanical">Mechanical</option>
-            <option value="Electrical">Electrical</option>
-            <option value="General">General</option>
+            {sections
+              .slice()
+              .sort((left, right) => left.name.localeCompare(right.name))
+              .map(section => (
+                <option key={section.code} value={section.name}>
+                  {section.name}
+                </option>
+              ))}
           </select>
         </label>
 
@@ -166,7 +183,7 @@ export const WorkActivityReportPage: React.FC = () => {
             fontWeight: 600,
             alignSelf: 'flex-end',
           }}
-          onClick={handleApply}
+          onClick={() => void handleApply()}
         >
           Generate Report
         </button>
@@ -233,8 +250,8 @@ export const WorkActivityReportPage: React.FC = () => {
                           borderRadius: 4,
                           fontSize: 11,
                           fontWeight: 700,
-                          background: STATUS_COLORS[row.status] ? `${STATUS_COLORS[row.status]}22` : '#1e2332',
-                          color: STATUS_COLORS[row.status] ?? '#d1d5db',
+                          background: statusColors[row.status] ? `${statusColors[row.status]}22` : '#1e2332',
+                          color: statusColors[row.status] ?? '#d1d5db',
                         }}
                       >
                         {row.status.replace('_', ' ')}
