@@ -1,12 +1,8 @@
 # =============================================================================
 # FILE: config/urls.py
-# BUG FIX 1: Added missing /api/v1/config/   → config_mgmt.urls
-#            Added missing /api/v1/prototype/ → prototype.urls
-#            Both apps existed in backend/ but were never wired into URL routing
-#            causing every Config Management and Prototype Inspection API call
-#            to return HTTP 404.
-# BUG FIX 2: Work Ledger prefix changed from 'work/' → 'work-ledger/' to match
-#            what workLedgerService.ts calls (BASE = '/work-ledger').
+# ADDED: /api/v1/search/ → apps.search.urls
+#        (Everything-style instant search: autocomplete + unified endpoints)
+# All previous routes preserved verbatim.
 # =============================================================================
 from django.contrib import admin
 from django.urls    import path, include
@@ -50,18 +46,17 @@ urlpatterns = [
     path(API_V1 + 'pl-master/',  include('apps.pl_master.urls')),
     path(API_V1 + 'sdr/',        include('apps.sdr.urls')),
 
+    # ---- Instant Search (Everything-style) -----------------------------
+    path(API_V1 + 'search/',     include('apps.search.urls')),
+
     # ---- Work Ledger module --------------------------------------------
-    # BUG FIX 2: prefix was 'work/' but frontend calls /api/v1/work-ledger/
     path(API_V1 + 'work-ledger/', include('apps.work_ledger.urls')),
 
     # ---- Backend standalone apps (backend/ package, NOT apps/) ---------
-    # BUG FIX 1a: config_mgmt was MISSING — caused 404 on all /api/v1/config/ calls
     path(API_V1 + 'config/',     include('config_mgmt.urls')),
-
-    # BUG FIX 1b: prototype was MISSING — caused 404 on all /api/v1/prototype/ calls
     path(API_V1 + 'prototype/',  include('prototype.urls')),
 
-    # RESTORED: BOM app was MISSING
+    # ---- BOM app -------------------------------------------------------
     path(API_V1 + 'bom/',        include('bom.urls')),
 
     # ---- Sprint 7: public share-link routes ----------------------------

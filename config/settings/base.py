@@ -1,9 +1,7 @@
 # =============================================================================
 # FILE: config/settings/base.py
-# FIX #19b (addendum): Added ocr_submit and ocr_retry throttle scopes to
-#   REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] so OCRSubmitThrottle /
-#   OCRRetryThrottle resolve their rates correctly.
-# All other settings from previous commit preserved.
+# ADDED: 'apps.search' to INSTALLED_APPS
+# All other settings preserved verbatim from previous commit.
 # =============================================================================
 import os
 import sys
@@ -53,6 +51,7 @@ INSTALLED_APPS = [
     'apps.rbac',
     'apps.work_ledger',
     'apps.sdr',
+    'apps.search',          # <-- Instant Search (Everything-style)
     'config_mgmt',
     'prototype',
     'bom',
@@ -150,7 +149,6 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon':       '60/minute',
         'user':       '600/minute',
-        # FIX #19b: OCR-specific throttle scopes
         'ocr_submit': config('OCR_SUBMIT_THROTTLE_RATE', default='20/hour'),
         'ocr_retry':  config('OCR_RETRY_THROTTLE_RATE',  default='10/hour'),
     },
