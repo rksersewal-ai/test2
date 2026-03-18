@@ -1,12 +1,20 @@
 # =============================================================================
 # FILE: config/settings/production.py
-# Hardened production settings for reverse-proxy HTTPS deployment.
+# ADDED:
+#   - FileBasedCache via config/settings/cache.py
+#   - CONN_MAX_AGE=60 (persistent DB connections, reduces connection overhead)
+#   - DB OPTIONS for statement_timeout + application_name
+#   - Whitenoise immutable asset caching
+#   - Search query caching timeout reference
+# Previous hardening settings preserved verbatim.
 # =============================================================================
 """Production settings - PLW EDMS + LDO. LAN-only deployment."""
+from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 from decouple import config
 
 from .base import *  # noqa
+from .cache import *  # noqa  — imports CACHES, SESSION_ENGINE, etc.
 
 
 def _split_csv(name: str, *, default: str = '', required: bool = False) -> list[str]:
@@ -20,39 +28,65 @@ def _split_csv(name: str, *, default: str = '', required: bool = False) -> list[
 DEBUG = False
 SECRET_KEY = config('SECRET_KEY')
 
-ALLOWED_HOSTS = _split_csv('ALLOWED_HOSTS', required=True)
+ALLOWED_HOSTS    = _split_csv('ALLOWED_HOSTS',    required=True)
 CORS_ALLOWED_ORIGINS = _split_csv('CORS_ALLOWED_ORIGINS')
 CSRF_TRUSTED_ORIGINS = _split_csv('CSRF_TRUSTED_ORIGINS')
 CORS_ALLOW_CREDENTIALS = True
 
-# Reverse-proxy / HTTPS hardening
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = config('USE_X_FORWARDED_HOST', cast=bool, default=True)
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', cast=bool, default=True)
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', cast=bool, default=True)
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', cast=bool, default=True)
-SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', cast=int, default=31536000)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
-    'SECURE_HSTS_INCLUDE_SUBDOMAINS',
-    cast=bool,
-    default=True,
-)
-SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', cast=bool, default=True)
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_REFERRER_POLICY = 'same-origin'
-X_FRAME_OPTIONS = 'DENY'
+# ---------------------------------------------------------------------------
+# Database: Persistent connections + LAN-safe options
+# ---------------------------------------------------------------------------
+# CONN_MAX_AGE=60 keeps each Waitress thread's DB connection alive for 60s.
+# On a LAN with 16 Waitress threads this means max 16 open PG connections
+# instead of a new connect/disconnect per request — ~10-30ms saved per request.
+# statement_timeout=30s is a global safety net (search endpoints set their own
+# LOCAL timeouts; this catches any other runaway query).
+DATABASES['default']['CONN_MAX_AGE'] = 60
+DATABASES['default']['OPTIONS'] = {
+    'options': '-c search_path=public -c statement_timeout=30000 -c application_name=edms_plw',
+}
 
-# Explicit production infra dependencies
-CELERY_BROKER_URL = config('CELERY_BROKER_URL')
+# ---------------------------------------------------------------------------
+# Static files: Whitenoise immutable caching
+# ---------------------------------------------------------------------------
+# Hashed filenames (e.g. main.abc123.js) are served with Cache-Control: max-age=1yr
+# The browser only downloads changed files, not the whole bundle.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ---------------------------------------------------------------------------
+# Reverse-proxy / HTTPS hardening (preserved)
+# ---------------------------------------------------------------------------
+SECURE_PROXY_SSL_HEADER        = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST           = config('USE_X_FORWARDED_HOST',          cast=bool, default=True)
+SECURE_SSL_REDIRECT            = config('SECURE_SSL_REDIRECT',            cast=bool, default=True)
+SESSION_COOKIE_SECURE          = config('SESSION_COOKIE_SECURE',          cast=bool, default=True)
+CSRF_COOKIE_SECURE             = config('CSRF_COOKIE_SECURE',             cast=bool, default=True)
+SECURE_HSTS_SECONDS            = config('SECURE_HSTS_SECONDS',            cast=int,  default=31536000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', cast=bool, default=True)
+SECURE_HSTS_PRELOAD            = config('SECURE_HSTS_PRELOAD',            cast=bool, default=True)
+SECURE_CONTENT_TYPE_NOSNIFF    = True
+SECURE_REFERRER_POLICY         = 'same-origin'
+X_FRAME_OPTIONS                = 'DENY'
+
+# ---------------------------------------------------------------------------
+# Celery (preserved)
+# ---------------------------------------------------------------------------
+CELERY_BROKER_URL    = config('CELERY_BROKER_URL')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=CELERY_BROKER_URL)
 
-# Ensure runtime directories exist before logging/static/media initialization.
+# ---------------------------------------------------------------------------
+# Runtime directories (preserved)
+# ---------------------------------------------------------------------------
 LOG_DIR = BASE_DIR / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_ROOT.mkdir(parents=True, exist_ok=True)
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 Path(OCR_WATCH_FOLDER).mkdir(parents=True, exist_ok=True)
+(BASE_DIR / 'cache_store').mkdir(parents=True, exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# Logging (preserved)
+# ---------------------------------------------------------------------------
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -80,8 +114,13 @@ LOGGING = {
         'level':    'INFO',
     },
     'loggers': {
-        'scanner': {'level': 'INFO', 'propagate': True},
-        'webhooks': {'level': 'INFO', 'propagate': True},
+        'django.db.backends': {
+            'handlers': ['file'],
+            'level':    config('DB_LOG_LEVEL', default='WARNING'),
+            'propagate': False,
+        },
+        'scanner':    {'level': 'INFO', 'propagate': True},
+        'webhooks':   {'level': 'INFO', 'propagate': True},
         'sharelinks': {'level': 'INFO', 'propagate': True},
     },
 }

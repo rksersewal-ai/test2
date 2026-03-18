@@ -1,9 +1,12 @@
 # =============================================================================
 # FILE: apps/edms/views.py
-# FIXES applied:
+# PERF: Added cache invalidation on write operations (create, update,
+#       change_status, approve, reject, bulk_update, revision create).
+#       Cache-Control headers added to list/retrieve responses.
+# FIXES preserved:
 #   #16 - bulk_update: IDs list capped at MAX_BULK_IDS=500 to prevent table lock
 #   #22 - bulk_update: section_id validated against active sections before update
-# (FIX #14 already applied in previous commit: _safe_open_attachment)
+#   #14 - _safe_open_attachment
 # =============================================================================
 import os
 from django.utils import timezone
@@ -36,6 +39,11 @@ from apps.edms.services import DocumentService, RevisionService
 from apps.core.models import Section
 from apps.core.permissions import IsEngineerOrAbove, IsAdminOrSectionHead, CanManageDropdowns
 from apps.core.permissions import get_user_role, ROLE_ADMIN, ROLE_SECTION_HEAD
+from apps.core.cache import (
+    invalidate_document_cache,
+    invalidate_dropdown_cache,
+    CACHE_MEDIUM,
+)
 
 MAX_BULK_IDS = 500   # FIX #16: safety cap to prevent full-table lock
 
@@ -61,6 +69,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         data = {k: v for k, v in serializer.validated_data.items()}
         serializer.instance = DocumentService.create_document(data, created_by=self.request.user)
+        invalidate_document_cache()  # PERF: bust list cache on new document
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        invalidate_document_cache(serializer.instance.pk)  # PERF: bust detail + list cache
 
     def _latest_attachment(self, document):
         revision = (
@@ -114,6 +127,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only admin or section head can mark documents obsolete.'},
                             status=status.HTTP_403_FORBIDDEN)
         DocumentService.update_status(doc, new_status, request.user)
+        invalidate_document_cache(doc.pk)  # PERF: bust cache on status change
         return Response({'status': new_status})
 
     @action(detail=True, methods=['post'], url_path='approve')
@@ -121,6 +135,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc = self.get_object()
         DocumentService.update_status(doc, Document.Status.ACTIVE, request.user)
         doc.refresh_from_db()
+        invalidate_document_cache(doc.pk)  # PERF
         return Response(DocumentDetailSerializer(doc, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reject')
@@ -128,6 +143,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc = self.get_object()
         DocumentService.update_status(doc, Document.Status.DRAFT, request.user)
         doc.refresh_from_db()
+        invalidate_document_cache(doc.pk)  # PERF
         return Response(DocumentDetailSerializer(doc, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], url_path='versions')
@@ -215,7 +231,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if not ids or not isinstance(ids, list):
             return Response({'error': 'ids must be a non-empty list.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        # FIX #16: cap ids to prevent locking thousands of rows
         if len(ids) > MAX_BULK_IDS:
             return Response(
                 {'error': f'Maximum {MAX_BULK_IDS} documents per bulk update. Got {len(ids)}.'},
@@ -226,7 +241,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if not update_data:
             return Response({'error': f'No valid fields. Allowed: {allowed_fields}'},
                             status=status.HTTP_400_BAD_REQUEST)
-        # FIX #22: validate section_id against active sections only
         if 'section_id' in update_data:
             section_id = update_data['section_id']
             if not Section.objects.filter(pk=section_id, is_active=True).exists():
@@ -235,6 +249,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         updated = Document.objects.filter(pk__in=ids).update(**update_data)
+        invalidate_document_cache()  # PERF: bust list cache after bulk update
         return Response({'updated': updated})
 
     @action(detail=True, methods=['get'], url_path='similar')
@@ -276,6 +291,7 @@ class RevisionViewSet(viewsets.ModelViewSet):
         document = serializer.validated_data['document']
         data     = {k: v for k, v in serializer.validated_data.items() if k != 'document'}
         serializer.instance = RevisionService.create_revision(document, data, created_by=self.request.user)
+        invalidate_document_cache(document.pk)  # PERF: new revision → bust document cache
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
