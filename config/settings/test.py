@@ -1,5 +1,8 @@
 from .base import *
 
+# Use a strong fixed key in tests so JWT signing matches production minimums.
+SECRET_KEY = 'test-only-secret-key-with-at-least-thirty-two-characters'
+
 # In-memory database for tests
 DATABASES = {
     'default': {

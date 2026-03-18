@@ -5,6 +5,8 @@
 from celery import shared_task
 import logging
 
+from apps.ml_classifier.runtime import ensure_ml_dependencies
+
 log = logging.getLogger('ml_classifier')
 
 
@@ -15,6 +17,12 @@ def retrain_all_classifiers(self, user_id: int = None):
     Triggered manually via admin UI or POST /api/ml/models/train/.
     Also scheduled weekly (see celery_app.py beat schedule update below).
     """
+    try:
+        ensure_ml_dependencies()
+    except RuntimeError as exc:
+        log.error(f'[ML] retrain_all unavailable: {exc}')
+        return {'status': 'unavailable', 'error': str(exc)}
+
     try:
         user = None
         if user_id:
@@ -46,6 +54,12 @@ def classify_document_task(document_id: int):
     Classify a single document in the background.
     Triggered automatically from apps/edms/services.py after OCR completes.
     """
+    try:
+        ensure_ml_dependencies()
+    except RuntimeError as exc:
+        log.warning(f'[ML] classify_document unavailable: {exc}')
+        return {'status': 'unavailable', 'error': str(exc)}
+
     from apps.ml_classifier.inference import classify_and_save
     result = classify_and_save(document_id)
     log.info(f'[ML] classify_document #{document_id}: {list(result.keys())}')

@@ -22,6 +22,7 @@ from apps.ml_classifier.serializers import (
     AcceptPredictionSerializer,
 )
 from apps.core.permissions import IsAdminOrSectionHead, IsEngineerOrAbove
+from apps.ml_classifier.runtime import ensure_ml_dependencies
 
 
 class ClassifierModelViewSet(viewsets.ReadOnlyModelViewSet):
@@ -42,6 +43,14 @@ class ClassifierModelViewSet(viewsets.ReadOnlyModelViewSet):
         Enqueue a full retrain via Celery so the HTTP request returns immediately.
         Returns task_id for polling.
         """
+        try:
+            ensure_ml_dependencies()
+        except RuntimeError as exc:
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         try:
             from apps.ml_classifier.tasks import retrain_all_classifiers
             task = retrain_all_classifiers.delay(user_id=request.user.pk)
@@ -79,6 +88,14 @@ class ClassificationResultViewSet(viewsets.GenericViewSet,
     @action(detail=False, methods=['post'], url_path=r'classify/(?P<document_id>[0-9]+)')
     def classify(self, request, document_id=None):
         """POST /api/ml/results/classify/{document_id}/"""
+        try:
+            ensure_ml_dependencies()
+        except RuntimeError as exc:
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         from apps.ml_classifier.inference import classify_and_save
         predictions = classify_and_save(int(document_id))
         if not predictions:

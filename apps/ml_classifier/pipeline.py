@@ -18,21 +18,16 @@
 #   2. category       (FK → edms_category)
 #   3. correspondent  (short_code of primary ISSUED_BY correspondent)
 # =============================================================================
-import os
 import logging
 from pathlib import Path
-from typing  import Tuple
-
-import joblib
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model            import SGDClassifier
-from sklearn.preprocessing           import LabelEncoder
-from sklearn.pipeline                import Pipeline
-from sklearn.model_selection         import train_test_split
-from sklearn.metrics                 import accuracy_score
+from typing import TYPE_CHECKING
 
 from django.conf import settings
+from apps.ml_classifier.runtime import ensure_ml_dependencies
+
+if TYPE_CHECKING:
+    from sklearn.pipeline import Pipeline
+    from apps.ml_classifier.models import ClassifierModel
 
 log = logging.getLogger('ml_classifier')
 
@@ -67,12 +62,12 @@ def _build_text(doc) -> str:
     return ' '.join(p for p in parts if p).lower()
 
 
-def _get_training_data(target: str) -> Tuple[list, list]:
+def _get_training_data(target: str) -> tuple[list, list]:
     """
     Query the DB and build (texts, labels) lists for a given target.
     Returns empty lists if fewer than 10 labelled examples exist.
     """
-    from apps.edms.models import Document, DocumentCorrespondentLink
+    from apps.edms.models import Document
 
     docs = list(
         Document.objects
@@ -112,13 +107,19 @@ def _get_training_data(target: str) -> Tuple[list, list]:
     return texts, labels
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline() -> 'Pipeline':
     """
     Return a fresh sklearn Pipeline.
     TF-IDF with both word and character n-grams captures:
       - Word-level: 'specification', 'drawing', 'tender'
       - Char-level : 'WAG', 'CLW', 'RDSO', 'EL/' (doc number prefixes)
     """
+    ensure_ml_dependencies()
+
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import SGDClassifier
+    from sklearn.pipeline import Pipeline
+
     vec = TfidfVectorizer(
         analyzer        = 'char_wb',
         ngram_range     = (2, 4),
@@ -145,6 +146,12 @@ def train(target: str, user=None) -> 'ClassifierModel':
     Creates a ClassifierModel DB row and deactivates previous versions.
     Returns the new ClassifierModel instance.
     """
+    ensure_ml_dependencies()
+
+    import joblib
+    from sklearn.metrics import accuracy_score
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import LabelEncoder
     from apps.ml_classifier.models import ClassifierModel
 
     log.info(f'[ML] Training classifier for target={target}')

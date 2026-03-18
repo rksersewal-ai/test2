@@ -11,10 +11,8 @@ import threading
 from pathlib import Path
 from typing  import Optional
 
-import joblib
-import numpy as np
-
 from django.conf import settings
+from apps.ml_classifier.runtime import ensure_ml_dependencies
 
 log     = logging.getLogger('ml_classifier')
 _lock   = threading.Lock()
@@ -25,6 +23,9 @@ ML_DIR = Path(settings.MEDIA_ROOT) / 'ml_models'
 
 def _load_model(target: str, force: bool = False) -> Optional[dict]:
     """Load (or reload) the active model for a target. Returns None if not trained yet."""
+    ensure_ml_dependencies()
+
+    import joblib
     from apps.ml_classifier.models import ClassifierModel
     with _lock:
         cm = ClassifierModel.objects.filter(target=target, is_active=True).first()
@@ -54,6 +55,9 @@ def predict_one(target: str, text: str, top_n: int = 3) -> list:
     Each item: {label, label_id (int index), confidence (float 0-1)}
     Returns [] if no model is available.
     """
+    ensure_ml_dependencies()
+
+    import numpy as np
     entry = _load_model(target)
     if not entry:
         return []
@@ -109,9 +113,10 @@ def classify_and_save(document_id: int) -> dict:
     3. Persist ClassificationResult rows.
     4. Return predictions dict.
     """
-    from django.utils import timezone
-    from apps.edms.models         import Document
-    from apps.ml_classifier.models import ClassifierModel, ClassificationResult
+    ensure_ml_dependencies()
+
+    from apps.edms.models import Document
+    from apps.ml_classifier.models import ClassificationResult
 
     try:
         doc = Document.objects.select_related(

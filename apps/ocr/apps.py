@@ -5,8 +5,12 @@
 #           task in ready() so it runs every 15 minutes automatically.
 #           No manual django-celery-beat admin config needed.
 # =============================================================================
+import logging
 import sys
 from django.apps import AppConfig
+from django.db.models.signals import post_migrate
+
+logger = logging.getLogger(__name__)
 
 
 class OCRConfig(AppConfig):
@@ -15,6 +19,11 @@ class OCRConfig(AppConfig):
     verbose_name       = 'OCR Pipeline'
 
     def ready(self):
+        post_migrate.connect(
+            self._ensure_checksum_beat_task,
+            dispatch_uid='apps.ocr.ensure_checksum_beat_task',
+        )
+
         # Skip side-effectful setup during DB/static management commands
         _skip_cmds = {'migrate', 'makemigrations', 'collectstatic', 'test', 'shell'}
         if any(cmd in sys.argv for cmd in _skip_cmds):
@@ -31,8 +40,11 @@ class OCRConfig(AppConfig):
                 'OCR processing may be unavailable.'
             )
 
-        # FIX #4b: Register periodic beat task for checksum fallback poller
-        # Uses get_or_create so it is idempotent across restarts.
+    def _ensure_checksum_beat_task(self, **kwargs):
+        app_config = kwargs.get('app_config')
+        if app_config and app_config.name not in {'apps.ocr', 'django_celery_beat'}:
+            return
+
         self._register_checksum_beat_task()
 
     @staticmethod
@@ -60,8 +72,7 @@ class OCRConfig(AppConfig):
             )
         except Exception:
             # DB may not yet have celery_beat tables (first deploy before migrate)
-            import logging
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 'Could not register checksum beat task — '
                 'run migrate first if this is a fresh deployment.'
             )

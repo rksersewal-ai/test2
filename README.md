@@ -53,6 +53,9 @@ python -m venv venv
 venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 
+# Optional: install OCR/ML extras if you will use classifier or advanced OCR features
+pip install -r requirements-optional.txt
+
 # 2. Configure environment
 copy .env.example .env
 # Edit .env with your DB credentials

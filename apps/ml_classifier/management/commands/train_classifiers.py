@@ -24,6 +24,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         target = options['target']
+        from apps.ml_classifier.runtime import ensure_ml_dependencies
+
+        try:
+            ensure_ml_dependencies()
+        except RuntimeError as exc:
+            raise CommandError(str(exc)) from exc
+
         from apps.ml_classifier.pipeline  import train, train_all
         from apps.ml_classifier.inference import reload_all
 
