@@ -2,7 +2,7 @@
 -- FILE: sql/010_search_indexes.sql
 -- SPRINT 2 | FEATURE #8: "More Like This" Similarity Search
 -- PURPOSE : Enable PostgreSQL trigram similarity search on document metadata
---           and OCR text. pg_trgm is already available in PostgreSQL 15.
+--           and OCR text. pg_trgm remains available in PostgreSQL 18.
 --           All indexes are GIN for fast similarity scoring.
 -- DEPENDS : edms_document, edms_document_custom_field (007)
 -- MIGRATION: Run after 009_document_notes.sql

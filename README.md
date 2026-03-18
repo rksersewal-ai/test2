@@ -8,7 +8,7 @@ Built for Indian Railways Production Unit | Local-first, LAN-only deployment
 ## Architecture
 
 ```
-React (Frontend) <-> Django REST Framework (Backend) <-> PostgreSQL 15
+React (Frontend) <-> Django REST Framework (Backend) <-> PostgreSQL 18
                               |
                     OCR Pipeline (Tesseract)
                     LAN-only Middleware
@@ -16,8 +16,8 @@ React (Frontend) <-> Django REST Framework (Backend) <-> PostgreSQL 15
 ```
 
 ## Tech Stack
-- **Backend:** Python 3.11 / Django 4.2 / DRF 3.15
-- **Database:** PostgreSQL 15
+- **Backend:** Python 3.11+ / Django 5.2 / DRF 3.16
+- **Database:** PostgreSQL 18
 - **OCR:** Tesseract + PyMuPDF + Pillow
 - **Auth:** JWT (djangorestframework-simplejwt)
 - **Deployment:** Windows LAN / IIS or gunicorn + nginx
@@ -73,6 +73,18 @@ python manage.py shell < scripts/seed_master_data.py
 # 6. Run development server
 python manage.py runserver
 ```
+
+## Frontend Build
+
+Run the frontend build from `frontend/`:
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+The active build command is `npm run build` (`tsc && vite build`). For local and Windows deployments it writes the bundled assets to `static/frontend`.
 
 ## API Endpoints
 

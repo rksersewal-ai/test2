@@ -2,7 +2,7 @@
 -- PLW EDMS + LDO WORK LEDGER — INITIAL SCHEMA
 -- File: 001_initial_schema.sql
 -- Version: 1.0
--- Database: PostgreSQL 15+
+-- Database: PostgreSQL 18+
 -- Run order: 1st
 -- ============================================================
 
