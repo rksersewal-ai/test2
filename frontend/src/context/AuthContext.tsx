@@ -48,7 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch(() => {
       // Network error on startup — keep user state, will retry on next API call
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (username: string, password: string): Promise<void> => {

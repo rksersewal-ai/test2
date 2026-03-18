@@ -4,7 +4,7 @@ export interface PreviewTab {
   id: string;
   docNumber: string;
   title: string;
-  fileUrl: string;       // served via /api/v1/edms/files/<id>/stream/
+  fileUrl: string;       // served via /api/v1/edms/documents/<id>/file/
   fileId: number;
   documentId: number;
   pageCount: number;
@@ -66,6 +66,7 @@ export interface DocumentMetadata {
   standard_refs: string[];     // IS, DIN, RDSO refs
   revision_count: number;
   current_revision: string | null;
+  latest_file_id: number | null;
 }
 
 export type ZoomLevel = 0.5 | 0.75 | 1.0 | 1.25 | 1.5 | 2.0;

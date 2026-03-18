@@ -120,7 +120,7 @@ export default function DocumentDetailPage() {
             docNumber: doc?.document_number ?? doc?.drawing_number ?? `DOC-${docId}`,
             title: doc?.title ?? `Document ${docId}`,
             fileUrl: doc?.file_url ?? `/api/v1/edms/documents/${docId}/file/`,
-            fileId: docId,
+            fileId: doc?.latest_file_id ?? 0,
             documentId: docId,
             pageCount: 1,
             mimeType: 'application/pdf',
@@ -186,7 +186,7 @@ export default function DocumentDetailPage() {
                 {([
                   ['Status',        <span className={`ddetail-badge ddetail-badge-${doc.status?.toLowerCase()}`}>{doc.status?.replace('_', ' ')}</span>],
                   ['Document No.',  <span className="ddetail-mono">{doc.document_number ?? '\u2014'}</span>],
-                  ['Document Type', doc.document_type ?? doc.doc_type ?? '\u2014'],
+                  ['Document Type', doc.document_type_name ?? doc.document_type ?? doc.doc_type ?? '\u2014'],
                   ['Version',       doc.version ?? doc.revision ?? '\u2014'],
                   ['Category',      doc.category_name ?? '\u2014'],
                   ['Section',       doc.section_name ?? '\u2014'],

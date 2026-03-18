@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.ocr.models import OCRQueue, OCRResult, OCRExtractedEntity
+from apps.edms.models import FileAttachment
 
 
 class OCRExtractedEntitySerializer(serializers.ModelSerializer):
@@ -54,3 +55,8 @@ class OCRQueueListSerializer(serializers.ModelSerializer):
             'queued_at', 'created_at', 'completed_at', 'processing_time_seconds',
             'confidence_score', 'total_pages',
         ]
+
+
+class OCRQueueCreateSerializer(serializers.Serializer):
+    file_attachment = serializers.PrimaryKeyRelatedField(queryset=FileAttachment.objects.all())
+    priority = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)

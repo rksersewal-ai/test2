@@ -38,7 +38,7 @@ export const AdminDropdownPage: React.FC = () => {
   useEffect(() => {
     setMsg(''); setErr('');
     loadItems();
-  }, [activeGroup]); // eslint-disable-line
+  }, [activeGroup]);
 
   const handleAdd = async () => {
     if (!newCode.trim() || !newLabel.trim()) {

@@ -44,7 +44,6 @@ export function usePageData<T>(options: PageDataOptions<T>): PageDataState<T> {
         }
       });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, ...deps]);
 
   return { data, loading, error, refetch };

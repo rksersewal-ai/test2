@@ -24,7 +24,7 @@ export const MonthlyKpiReportPage: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchKpi(); }, []); // eslint-disable-line
+  useEffect(() => { fetchKpi(); }, []);
 
   const total = summary.reduce((acc, r) => acc + r.work_count, 0);
   const monthLabel = `${year}-${String(month).padStart(2, '0')}`;

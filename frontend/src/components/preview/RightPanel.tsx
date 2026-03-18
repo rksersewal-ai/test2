@@ -25,6 +25,12 @@ const RELATION_LABELS: Record<string, string> = {
   SUPERSEDED_BY: 'Sup. by', LINKED: 'Linked',
 };
 
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-IN');
+}
+
 function formatEntityReference(entity: OCREntity): string {
   const rawId = String(entity.id ?? entity.page_number ?? entity.value ?? '0');
   const digits = rawId.replace(/\D/g, '').slice(-6).padStart(6, '0');
@@ -89,11 +95,11 @@ export function RightPanel({
                     <tr><td>Created by</td><td>{metadata.created_by_name}</td></tr>
                     <tr>
                       <td>Created</td>
-                      <td>{new Date(metadata.created_at).toLocaleDateString('en-IN')}</td>
+                      <td>{formatDate(metadata.created_at)}</td>
                     </tr>
                     <tr>
                       <td>Updated</td>
-                      <td>{new Date(metadata.updated_at).toLocaleDateString('en-IN')}</td>
+                      <td>{formatDate(metadata.updated_at)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -176,7 +182,7 @@ export function RightPanel({
                       {rev.status}
                     </span>
                     <span className={styles.revDate}>
-                      {new Date(rev.effective_date).toLocaleDateString('en-IN')}
+                      {formatDate(rev.effective_date)}
                     </span>
                   </div>
                   <div className={styles.revDesc}>{rev.change_description || '—'}</div>

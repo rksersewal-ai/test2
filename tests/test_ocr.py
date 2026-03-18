@@ -77,6 +77,12 @@ class TestOCRQueue:
         item.refresh_from_db()
         assert item.status == OCRQueue.Status.RETRY
 
+    def test_engineer_can_queue_ocr_for_file(self, auth_client_engineer):
+        attachment = FileAttachmentFactory.create()
+        r = auth_client_engineer.post('/api/v1/ocr/queue/', {'file_attachment': attachment.pk}, format='json')
+        assert r.status_code == 201
+        assert r.data['status'] == OCRQueue.Status.PENDING
+
     def test_by_file_result_returns_extracted_text(self, auth_client_engineer):
         result = OCRResultFactory.create(full_text='Extracted OCR text')
         file_id = result.queue_item.file_attachment_id

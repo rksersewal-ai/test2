@@ -68,7 +68,33 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         data = {k: v for k, v in serializer.validated_data.items()}
-        serializer.instance = DocumentService.create_document(data, created_by=self.request.user)
+        uploaded_file = data.pop('uploaded_file', None)
+        initial_revision_number = (data.pop('initial_revision_number', '') or '').strip()
+
+        doc = DocumentService.create_document(data, created_by=self.request.user)
+
+        if uploaded_file or initial_revision_number:
+            revision_payload = {
+                'revision_number': initial_revision_number or 'A',
+                'revision_date': timezone.now().date(),
+                'status': Revision.Status.CURRENT if doc.status == Document.Status.ACTIVE else Revision.Status.DRAFT,
+                'change_description': 'Initial upload' if uploaded_file else 'Initial revision entry',
+            }
+            revision = RevisionService.create_revision(doc, revision_payload, created_by=self.request.user)
+
+            if uploaded_file:
+                attachment_serializer = FileAttachmentSerializer(
+                    data={
+                        'revision': revision.pk,
+                        'file': uploaded_file,
+                        'is_primary': True,
+                    },
+                    context={'request': self.request},
+                )
+                attachment_serializer.is_valid(raise_exception=True)
+                attachment_serializer.save()
+
+        serializer.instance = DocumentRepository.get_detail_qs().get(pk=doc.pk)
         invalidate_document_cache()  # PERF: bust list cache on new document
 
     def perform_update(self, serializer):

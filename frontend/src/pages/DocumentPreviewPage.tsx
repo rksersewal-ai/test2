@@ -9,6 +9,8 @@ import { ViewerToolbar } from '../components/preview/ViewerToolbar';
 import { LeftPanel } from '../components/preview/LeftPanel';
 import { RightPanel } from '../components/preview/RightPanel';
 import { OCREntityModal } from '../components/preview/OCREntityModal';
+import { Toast } from '../components/common';
+import type { ToastMsg } from '../components/common';
 import type { OCREntity, RelatedDocument, RotationDeg, ZoomLevel } from '../types/preview';
 import styles from './DocumentPreviewPage.module.css';
 import './DocumentPreviewPremium.css';
@@ -26,6 +28,7 @@ export default function DocumentPreviewPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showOCR, setShowOCR]     = useState(true);
   const [selectedEntity, setSelectedEntity] = useState<OCREntity | null>(null);
+  const [toast, setToast] = useState<ToastMsg | null>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? null;
 
@@ -43,7 +46,7 @@ export default function DocumentPreviewPage() {
         docNumber: data.document_number ?? `DOC-${documentId}`,
         title: data.title ?? `Document ${documentId}`,
         fileUrl: `/api/v1/edms/documents/${documentId}/file/`,
-        fileId: 0,
+        fileId: data.latest_file_id ?? 0,
         documentId,
         pageCount: 1,
         mimeType: 'application/pdf',
@@ -60,14 +63,18 @@ export default function DocumentPreviewPage() {
   // Data hooks — always called, gated by null checks inside
   const { data: metadata, isLoading: metaLoading } =
     useDocumentMetadata(activeTab?.documentId ?? null);
+  const resolvedFileId =
+    metadata?.latest_file_id
+    ?? (activeTab?.fileId && activeTab.fileId > 0 ? activeTab.fileId : null);
   const { data: ocrResult } =
-    useDocumentOCR(activeTab?.fileId ?? null);
+    useDocumentOCR(resolvedFileId);
   const { data: revisions = [] } =
     useDocumentRevisions(activeTab?.documentId ?? null);
   const { data: relatedDocs = [] } =
     useRelatedDocuments(activeTab?.documentId ?? null);
 
   const ocrEntities = ocrResult?.entities ?? [];
+  const viewerPageCount = ocrResult?.page_count ?? activeTab?.pageCount ?? 1;
 
   // Zoom
   const zoomIn  = () => setZoom(prev => ZOOM_STEPS[Math.min(ZOOM_STEPS.indexOf(prev) + 1, ZOOM_STEPS.length - 1)]);
@@ -90,7 +97,7 @@ export default function DocumentPreviewPage() {
       docNumber: doc.doc_number,
       title: doc.title,
       fileUrl: `/api/v1/edms/documents/${doc.id}/file/`,
-      fileId: doc.id,
+      fileId: 0,
       documentId: doc.id,
       pageCount: 1,
       mimeType: 'application/pdf',
@@ -106,9 +113,17 @@ export default function DocumentPreviewPage() {
     a.click();
   };
 
-  // Re-OCR — trigger mutation (placeholder toast)
-  const handleReOCR = () => {
-    alert(`Re-OCR queued for ${activeTab?.docNumber}`);
+  const handleReOCR = async () => {
+    if (!resolvedFileId) {
+      setToast({ type: 'error', text: 'No file is attached to this document yet.' });
+      return;
+    }
+    try {
+      await apiClient.post('/ocr/queue/', { file_attachment: resolvedFileId });
+      setToast({ type: 'success', text: `OCR queued for ${activeTab?.docNumber}.` });
+    } catch {
+      setToast({ type: 'error', text: 'Could not queue OCR for this document.' });
+    }
   };
 
   // Compare — navigate to compare view
@@ -118,6 +133,7 @@ export default function DocumentPreviewPage() {
 
   return (
     <div className={styles.root}>
+      <Toast msg={toast} onClose={() => setToast(null)} />
       {/* ── TOP: Tab Bar ── */}
       <PreviewTabBar
         tabs={tabs}
@@ -130,7 +146,7 @@ export default function DocumentPreviewPage() {
         <div className={styles.workspace}>
           {/* ── LEFT PANEL ── */}
           <LeftPanel
-            pageCount={activeTab.pageCount}
+            pageCount={viewerPageCount}
             currentPage={currentPage}
             ocrEntities={ocrEntities}
             onPageSelect={setCurrentPage}
@@ -142,7 +158,7 @@ export default function DocumentPreviewPage() {
             <PDFViewer
               fileUrl={activeTab.fileUrl}
               currentPage={currentPage}
-              pageCount={activeTab.pageCount}
+              pageCount={viewerPageCount}
               zoom={zoom}
               rotation={rotation}
               showOCROverlay={showOCR}

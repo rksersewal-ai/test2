@@ -102,6 +102,8 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     legacy_doc_number = serializers.CharField(write_only=True, required=False)
     doc_type          = serializers.CharField(write_only=True, required=False, allow_blank=True)
     language          = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    initial_revision_number = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    uploaded_file          = serializers.FileField(write_only=True, required=False, allow_null=True)
     category_name      = serializers.CharField(source='category.name',      read_only=True)
     document_type_name = serializers.CharField(source='document_type.name', read_only=True)
     section_name       = serializers.CharField(source='section.name',       read_only=True)
@@ -109,6 +111,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     version  = serializers.SerializerMethodField(read_only=True)
     revision = serializers.SerializerMethodField(read_only=True)
     file_url = serializers.SerializerMethodField(read_only=True)
+    latest_file_id = serializers.SerializerMethodField(read_only=True)
     tags     = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -121,6 +124,14 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
         doc_number = normalized.get('doc_number') or normalized.get('legacy_doc_number')
         if doc_number and not normalized.get('document_number'):
             normalized['document_number'] = doc_number
+        version = normalized.get('version')
+        if version and not normalized.get('initial_revision_number'):
+            normalized['initial_revision_number'] = version
+        uploaded_file = normalized.get('file')
+        if uploaded_file and not normalized.get('uploaded_file'):
+            normalized['uploaded_file'] = uploaded_file
+        normalized.pop('version', None)
+        normalized.pop('file', None)
         return super().to_internal_value(normalized)
 
     def _resolve_document_type(self, raw_value):
@@ -168,6 +179,21 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         path = f'/api/v1/edms/documents/{obj.pk}/file/'
         return request.build_absolute_uri(path) if request else path
+
+    def get_latest_file_id(self, obj):
+        revision = self._latest_revision(obj)
+        if revision is None:
+            return None
+        cache = getattr(revision, '_prefetched_objects_cache', {})
+        if 'files' in cache:
+            files = sorted(
+                list(cache['files']),
+                key=lambda item: (item.is_primary, item.uploaded_at),
+                reverse=True,
+            )
+            return files[0].pk if files else None
+        attachment = revision.files.order_by('-is_primary', '-uploaded_at').first()
+        return attachment.pk if attachment else None
 
     def get_tags(self, obj):
         if not obj.keywords:

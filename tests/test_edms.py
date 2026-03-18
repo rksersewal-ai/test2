@@ -1,8 +1,10 @@
 """EDMS API tests — PRD Section 5 & 18."""
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from tests.factories import (
     DocumentFactory, RevisionFactory, FileAttachmentFactory,
+    DocumentTypeFactory,
     SectionFactory, UserFactory,
 )
 
@@ -75,6 +77,27 @@ class TestDocumentCreate:
         }
         r = auth_client_engineer.post(self.url, payload, format='json')
         assert r.status_code == 400
+
+    def test_create_with_upload_creates_initial_revision_and_attachment(self, auth_client_engineer, section):
+        DocumentTypeFactory(code='RDSO_SPEC', name='RDSO Specification')
+        upload = SimpleUploadedFile(
+            'initial.pdf',
+            b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF',
+            content_type='application/pdf',
+        )
+        payload = {
+            'doc_number': 'PLW/TEST/2026/7777',
+            'title': 'Uploaded Engineering Document',
+            'doc_type': 'RDSO_SPEC',
+            'status': 'ACTIVE',
+            'section': section.pk,
+            'version': 'A',
+            'file': upload,
+        }
+        r = auth_client_engineer.post(self.url, payload, format='multipart')
+        assert r.status_code == 201
+        assert r.data['version'] == 'A'
+        assert r.data['latest_file_id'] is not None
 
 
 @pytest.mark.django_db

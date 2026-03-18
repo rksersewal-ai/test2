@@ -11,7 +11,12 @@ from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.ocr.models import OCRQueue
-from apps.ocr.serializers import OCRQueueSerializer, OCRQueueListSerializer, OCRResultSerializer
+from apps.ocr.serializers import (
+    OCRQueueSerializer,
+    OCRQueueListSerializer,
+    OCRResultSerializer,
+    OCRQueueCreateSerializer,
+)
 from apps.ocr.filters import OCRQueueFilter
 from apps.ocr.throttles import OCRSubmitThrottle, OCRRetryThrottle
 from apps.core.permissions import IsEngineerOrAbove
@@ -36,6 +41,8 @@ class OCRQueueViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def get_serializer_class(self):
+        if self.action == 'create':
+            return OCRQueueCreateSerializer
         if self.action == 'retrieve':
             return OCRQueueSerializer
         return OCRQueueListSerializer
@@ -57,6 +64,40 @@ class OCRQueueViewSet(viewsets.ReadOnlyModelViewSet):
         )
         result = {row['status'].lower(): row['count'] for row in agg}
         return Response(result)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file_attachment = serializer.validated_data['file_attachment']
+        priority = serializer.validated_data['priority']
+        item, created = OCRQueue.objects.get_or_create(
+            file_attachment=file_attachment,
+            defaults={
+                'priority': priority,
+                'status': OCRQueue.Status.PENDING,
+            },
+        )
+
+        if not created:
+            if item.status in (
+                OCRQueue.Status.PENDING,
+                OCRQueue.Status.PROCESSING,
+                OCRQueue.Status.RETRY,
+            ):
+                payload = OCRQueueSerializer(item).data
+                payload['detail'] = 'OCR is already queued for this file.'
+                return Response(payload, status=status.HTTP_200_OK)
+
+            item.priority = priority
+            item.status = OCRQueue.Status.RETRY if item.attempts > 0 or hasattr(item, 'result') else OCRQueue.Status.PENDING
+            item.failure_reason = ''
+            item.save(update_fields=['priority', 'status', 'failure_reason'])
+
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        payload = OCRQueueSerializer(item).data
+        payload['detail'] = 'OCR queued.' if created else 'OCR re-queued.'
+        return Response(payload, status=response_status)
 
     @action(detail=True, methods=['post'], url_path='retry')
     def retry(self, request, pk=None):
