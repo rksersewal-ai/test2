@@ -7,6 +7,8 @@
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count
+from django.db.utils import OperationalError, ProgrammingError
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
@@ -14,7 +16,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.edms.models import Document
-from apps.workflow.models import WorkLedgerEntry
+from apps.workflow.models import WorkLedgerEntry, ApprovalRequest
 from apps.ocr.models import OCRQueue
 from apps.dashboard.models import UserSavedView
 from apps.dashboard.serializers import UserSavedViewSerializer, ReorderSavedViewsSerializer
@@ -28,6 +30,8 @@ class DashboardStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        user_model = get_user_model()
+
         # Documents
         doc_counts = {
             item['status']: item['count']
@@ -50,10 +54,42 @@ class DashboardStatsView(APIView):
         from apps.edms.repository import DocumentRepository
         by_section = list(DocumentRepository.documents_by_section()[:15])
 
+        # Dashboard home widgets
+        recent_docs = list(
+            Document.objects.select_related('created_by')
+            .order_by('-updated_at')[:8]
+        )
+        try:
+            pending_qs = (
+                ApprovalRequest.objects.select_related('revision__document', 'initiated_by')
+                .filter(status__in=[
+                    ApprovalRequest.Status.PENDING,
+                    ApprovalRequest.Status.IN_REVIEW,
+                ])
+                .order_by('-initiated_at')
+            )
+            pending_count = pending_qs.count()
+            pending_items = list(pending_qs[:8])
+        except (OperationalError, ProgrammingError):
+            pending_count = 0
+            pending_items = []
+        total_documents = sum(doc_counts.values())
+        actionable_ocr = (
+            ocr_counts.get('PENDING', 0)
+            + ocr_counts.get('PROCESSING', 0)
+            + ocr_counts.get('MANUAL_REVIEW', 0)
+        )
+
         return Response({
             'generated_at': timezone.now().isoformat(),
+            'stats': {
+                'total_documents': total_documents,
+                'pending_approvals': pending_count,
+                'ocr_queue': actionable_ocr,
+                'total_users': user_model.objects.filter(is_active=True).count(),
+            },
             'documents': {
-                'total':      sum(doc_counts.values()),
+                'total':      total_documents,
                 'active':     doc_counts.get('ACTIVE', 0),
                 'draft':      doc_counts.get('DRAFT', 0),
                 'obsolete':   doc_counts.get('OBSOLETE', 0),
@@ -73,6 +109,30 @@ class DashboardStatsView(APIView):
                 'manual_review': ocr_counts.get('MANUAL_REVIEW', 0),
             },
             'documents_by_section': by_section,
+            'recent_docs': [
+                {
+                    'id': doc.id,
+                    'title': doc.title,
+                    'doc_number': doc.document_number,
+                    'status': doc.status,
+                    'updated_at': doc.updated_at,
+                }
+                for doc in recent_docs
+            ],
+            'pending_approvals': [
+                {
+                    'id': item.revision.document_id,
+                    'title': item.revision.document.title,
+                    'doc_number': item.revision.document.document_number,
+                    'created_by_name': (
+                        item.initiated_by.full_name
+                        if item.initiated_by and item.initiated_by.full_name
+                        else (item.initiated_by.username if item.initiated_by else '')
+                    ),
+                    'created_at': item.initiated_at,
+                }
+                for item in pending_items
+            ],
         })
 
 
