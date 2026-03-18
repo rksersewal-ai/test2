@@ -40,11 +40,11 @@ from .serializers import (
 
 
 def _is_officer_or_above(request):
-    return get_user_role(request.user) in OFFICER_AND_ABOVE
+    return get_user_role(request) in OFFICER_AND_ABOVE
 
 
 def _is_engineer_or_above(request):
-    return get_user_role(request.user) in ENGINEER_AND_ABOVE
+    return get_user_role(request) in ENGINEER_AND_ABOVE
 
 
 # ── Controlling Agency ───────────────────────────────────────────────────────

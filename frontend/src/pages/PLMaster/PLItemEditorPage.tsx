@@ -4,6 +4,8 @@ import { Btn, PageHeader, Toast } from '../../components/common';
 import type { ToastMsg } from '../../components/common';
 import { plMasterService } from '../../services/plMasterService';
 
+const SAFETY_CLASSIFICATIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
 export default function PLItemEditorPage() {
   const { plNumber } = useParams<{ plNumber?: string }>();
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ export default function PLItemEditorPage() {
     part_description: '',
     inspection_category: '',
     safety_item: false,
+    safety_classification: '',
     uvam_id: '',
     application_area: '',
     used_in_text: '',
@@ -38,6 +41,7 @@ export default function PLItemEditorPage() {
           part_description: data.part_description ?? '',
           inspection_category: data.inspection_category ?? '',
           safety_item: Boolean(data.safety_item),
+          safety_classification: data.safety_classification ?? '',
           uvam_id: data.uvam_id ?? '',
           application_area: data.application_area ?? '',
           used_in_text: (data.used_in ?? []).join(', '),
@@ -61,6 +65,10 @@ export default function PLItemEditorPage() {
       setToast({ type: 'error', text: 'PL number and description are required.' });
       return;
     }
+    if (form.safety_item && !form.safety_classification) {
+      setToast({ type: 'error', text: 'Select a safety classification for safety items.' });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -69,6 +77,7 @@ export default function PLItemEditorPage() {
         part_description: form.part_description.trim(),
         inspection_category: form.inspection_category || '',
         safety_item: form.safety_item,
+        safety_classification: form.safety_item ? form.safety_classification : '',
         uvam_id: form.uvam_id.trim(),
         application_area: form.application_area.trim(),
         used_in: form.used_in_text
@@ -120,6 +129,13 @@ export default function PLItemEditorPage() {
           options={['', 'CAT-A', 'CAT-B', 'CAT-C', 'CAT-D']}
         />
         <SelectField
+          label="Safety Classification"
+          value={form.safety_classification}
+          onChange={value => setField('safety_classification', value)}
+          options={SAFETY_CLASSIFICATIONS}
+          disabled={!form.safety_item}
+        />
+        <SelectField
           label="Controlling Agency"
           value={form.controlling_agency}
           onChange={value => setField('controlling_agency', value)}
@@ -127,7 +143,16 @@ export default function PLItemEditorPage() {
         />
         <Field label="Loco Types" value={form.used_in_text} onChange={value => setField('used_in_text', value)} placeholder="WAG9, WAP7" full />
         <Field label="Remarks" value={form.remarks} onChange={value => setField('remarks', value)} full />
-        <CheckboxField label="Safety Item" checked={form.safety_item} onChange={value => setField('safety_item', value)} />
+        <CheckboxField
+          label="Safety Item"
+          checked={form.safety_item}
+          onChange={value => {
+            setField('safety_item', value);
+            if (!value) {
+              setField('safety_classification', '');
+            }
+          }}
+        />
         <CheckboxField label="Active" checked={form.is_active} onChange={value => setField('is_active', value)} />
       </div>
     </div>
@@ -174,17 +199,20 @@ function SelectField({
   value,
   onChange,
   options,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: string[];
+  disabled?: boolean;
 }) {
   return (
     <label style={{ display: 'grid', gap: 6 }}>
       <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600 }}>{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={event => onChange(event.target.value)}
         style={{
           padding: '10px 12px',
