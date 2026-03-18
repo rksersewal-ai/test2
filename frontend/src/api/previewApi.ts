@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { apiUrl } from './base';
 import type { DocumentMetadata, OCRResult, RelatedDocument, RevisionEntry } from '../types/preview';
 
 export const previewApi = {
@@ -19,5 +20,5 @@ export const previewApi = {
   triggerReOCR: (fileId: number) =>
     apiClient.post(`/ocr/queue/`, { file_attachment: fileId }).then(r => r.data),
 
-  streamUrl: (fileId: number) => `/api/v1/edms/files/${fileId}/stream/`,
+  streamUrl: (fileId: number) => apiUrl(`/edms/files/${fileId}/stream/`),
 };

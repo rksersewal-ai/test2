@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { apiUrl } from '../api/base';
 import { Btn, ConfirmDialog, PageHeader, SearchBar, Toast } from '../components/common';
 import type { ToastMsg } from '../components/common';
 import { usePreviewTabs } from '../context/PreviewTabsContext';
@@ -176,7 +177,7 @@ export default function DocumentListPage() {
                         id: `doc-${doc.id}`,
                         docNumber: doc.document_number ?? doc.drawing_number ?? `DOC-${doc.id}`,
                         title: doc.title,
-                        fileUrl: doc.file_url ?? `/api/v1/edms/documents/${doc.id}/file/`,
+                        fileUrl: doc.file_url ?? apiUrl(`/edms/documents/${doc.id}/file/`),
                         fileId: 0,
                         documentId: doc.id,
                         pageCount: 1,

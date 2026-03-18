@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../api/base';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { usePreviewTabs } from '../context/PreviewTabsContext';
@@ -122,7 +123,7 @@ export default function SpotlightSearchPage() {
       id: `doc-${hit.document_id}`,
       docNumber: hit.doc_number,
       title: hit.title,
-      fileUrl: `/api/v1/edms/files/${hit.file_id}/stream/`,
+      fileUrl: apiUrl(`/edms/files/${hit.file_id}/stream/`),
       fileId: hit.file_id,
       documentId: hit.document_id,
       pageCount: hit.page_count,

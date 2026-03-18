@@ -9,6 +9,7 @@
 // =============================================================================
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { apiUrl } from '../api/base';
 import { PageHeader, Btn, ConfirmDialog, Toast } from '../components/common';
 import type { ToastMsg } from '../components/common';
 import { documentService } from '../services/documentService';
@@ -119,7 +120,7 @@ export default function DocumentDetailPage() {
             id: `doc-${docId}`,
             docNumber: doc?.document_number ?? doc?.drawing_number ?? `DOC-${docId}`,
             title: doc?.title ?? `Document ${docId}`,
-            fileUrl: doc?.file_url ?? `/api/v1/edms/documents/${docId}/file/`,
+            fileUrl: doc?.file_url ?? apiUrl(`/edms/documents/${docId}/file/`),
             fileId: doc?.latest_file_id ?? 0,
             documentId: docId,
             pageCount: 1,

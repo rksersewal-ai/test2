@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiUrl } from '../api/base';
 import { apiClient } from '../api/client';
 import { usePreviewTabs } from '../context/PreviewTabsContext';
 import { useDocumentMetadata, useDocumentOCR, useDocumentRevisions, useRelatedDocuments } from '../hooks/useDocumentPreview';
@@ -45,7 +46,7 @@ export default function DocumentPreviewPage() {
         id: `doc-${documentId}`,
         docNumber: data.document_number ?? `DOC-${documentId}`,
         title: data.title ?? `Document ${documentId}`,
-        fileUrl: `/api/v1/edms/documents/${documentId}/file/`,
+        fileUrl: apiUrl(`/edms/documents/${documentId}/file/`),
         fileId: data.latest_file_id ?? 0,
         documentId,
         pageCount: 1,
@@ -96,7 +97,7 @@ export default function DocumentPreviewPage() {
       id: `doc-${doc.id}`,
       docNumber: doc.doc_number,
       title: doc.title,
-      fileUrl: `/api/v1/edms/documents/${doc.id}/file/`,
+      fileUrl: apiUrl(`/edms/documents/${doc.id}/file/`),
       fileId: 0,
       documentId: doc.id,
       pageCount: 1,
