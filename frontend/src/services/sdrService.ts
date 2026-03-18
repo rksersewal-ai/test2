@@ -2,13 +2,14 @@
 // FILE: frontend/src/services/sdrService.ts
 // =============================================================================
 import api from '../api/axios';
+import type { PaginatedResponse } from '../api/types';
 import type { SDRRecord, SDRRecordForm, DocSearchResult } from '../types/sdr';
 
 const BASE = '/sdr';
 
 export const sdrService = {
   list: (params?: Record<string, string>) =>
-    api.get<SDRRecord[]>(BASE + '/', { params }).then(r => r.data),
+    api.get<PaginatedResponse<SDRRecord>>(BASE + '/', { params }).then(r => r.data),
 
   get: (id: number) =>
     api.get<SDRRecord>(`${BASE}/${id}/`).then(r => r.data),

@@ -10,31 +10,47 @@ import type { SDRRecord } from '../../types/sdr';
 export default function SDRList() {
   const navigate = useNavigate();
   const [records, setRecords]   = useState<SDRRecord[]>([]);
+  const [total, setTotal]       = useState(0);
+  const [page, setPage]         = useState(1);
   const [loading, setLoading]   = useState(true);
   const [search,  setSearch]    = useState('');
   const [error,   setError]     = useState('');
+  const PAGE_SIZE = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = search ? { search } : undefined;
+      const params: Record<string, string> = {
+        page: String(page),
+        page_size: String(PAGE_SIZE),
+      };
+      if (search.trim()) {
+        params.search = search.trim();
+      }
       const data   = await sdrService.list(params);
-      setRecords(data);
+      setRecords(data.results ?? []);
+      setTotal(data.count ?? data.total_count ?? 0);
     } catch {
       setError('Failed to load SDR records.');
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, search]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (id: number, sdrNumber: string) => {
     if (!window.confirm(`Delete SDR record ${sdrNumber}?`)) return;
-    await sdrService.delete(id);
-    load();
+    try {
+      await sdrService.delete(id);
+      await load();
+    } catch {
+      setError(`Failed to delete SDR record ${sdrNumber}.`);
+    }
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="sdr-list-page">
@@ -55,7 +71,10 @@ export default function SDRList() {
           type="text"
           placeholder="Search by SDR No., shop, official, drawing number…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -116,6 +135,31 @@ export default function SDRList() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {!loading && (
+        <div className="pagination-bar">
+          <span className="muted">{total} records</span>
+          <div className="pagination-controls">
+            <button
+              className="btn btn-sm btn-secondary"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => current - 1)}
+              type="button"
+            >
+              ← Prev
+            </button>
+            <span>Page {page} / {totalPages}</span>
+            <button
+              className="btn btn-sm btn-secondary"
+              disabled={page >= totalPages}
+              onClick={() => setPage((current) => current + 1)}
+              type="button"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
