@@ -13,6 +13,15 @@ from apps.edms.models import Document, Revision
 from apps.audit.services import AuditService
 
 
+def _run_after_commit_or_now(callback):
+    """Execute callbacks immediately outside transactions, otherwise on commit."""
+    connection = transaction.get_connection()
+    if connection.get_autocommit():
+        callback()
+        return
+    transaction.on_commit(callback)
+
+
 class DocumentService:
     @staticmethod
     @transaction.atomic
@@ -23,7 +32,7 @@ class DocumentService:
         _doc_id   = doc.pk
         _doc_num  = doc.document_number
         _user     = created_by
-        transaction.on_commit(lambda: AuditService.log(
+        _run_after_commit_or_now(lambda: AuditService.log(
             user=_user,
             module='EDMS',
             action='CREATE_DOCUMENT',
@@ -46,7 +55,7 @@ class DocumentService:
         _user     = user
         _old      = old_status
         _new      = new_status
-        transaction.on_commit(lambda: AuditService.log(
+        _run_after_commit_or_now(lambda: AuditService.log(
             user=_user,
             module='EDMS',
             action='UPDATE_STATUS',
@@ -94,7 +103,7 @@ class RevisionService:
         _rev_num = rev.revision_number
         _rev_id  = rev.pk
         _user    = created_by
-        transaction.on_commit(lambda: AuditService.log(
+        _run_after_commit_or_now(lambda: AuditService.log(
             user=_user,
             module='EDMS',
             action='CREATE_REVISION',

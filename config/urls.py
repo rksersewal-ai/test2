@@ -15,6 +15,7 @@ from apps.core.auth_views import (
     LogoutView,
     MeView,
 )
+from apps.sanity.views import health_check
 
 API_V1 = 'api/v1/'
 
@@ -27,6 +28,7 @@ urlpatterns = [
     path(API_V1 + 'auth/token/verify/',  TokenVerifyView.as_view(),            name='token_verify'),
     path(API_V1 + 'auth/logout/',        LogoutView.as_view(),                  name='auth_logout'),
     path(API_V1 + 'auth/me/',            MeView.as_view(),                      name='auth_me'),
+    path(API_V1 + 'health/',             health_check,                          name='health-check'),
 
     # ---- Core apps (inside apps/ package) ------------------------------
     path(API_V1 + 'core/',       include('apps.core.urls')),

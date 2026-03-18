@@ -80,8 +80,7 @@ class AutocompleteView(APIView):
         except SearchUnavailableError as exc:
             logger.warning('autocomplete_search degraded: %s', exc)
             return Response(
-                {'error': str(exc), 'results': []},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {'error': str(exc), 'results': [], 'degraded': True},
             )
         except Exception as exc:
             logger.error('autocomplete_search unexpected error: %s', exc, exc_info=True)
@@ -147,8 +146,7 @@ class UnifiedSearchView(APIView):
         except SearchUnavailableError as exc:
             logger.warning('unified_search degraded: %s', exc)
             return Response(
-                {'error': str(exc), 'count': 0, 'results': []},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {'error': str(exc), 'count': 0, 'results': [], 'degraded': True},
             )
         except Exception as exc:
             logger.error('unified_search unexpected error: %s', exc, exc_info=True)

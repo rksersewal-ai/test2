@@ -42,9 +42,7 @@ INSTALLED_APPS = [
     'apps.ocr',
     'apps.audit',
     'apps.dashboard',
-    # apps.dsign — digital signature module (NOT YET WIRED to URLs).
-    # Enable when dsign/urls.py is included in config/urls.py.
-    # 'apps.dsign',
+    'apps.dsign',
     'apps.metadata',
     'apps.versioning',
     'apps.lifecycle',
